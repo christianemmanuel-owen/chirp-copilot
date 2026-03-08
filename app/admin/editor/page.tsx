@@ -21,7 +21,10 @@ import {
     PanelLeftClose,
     PanelLeftOpen,
     MoreHorizontal,
-    Trash2
+    Trash2,
+    ChevronDown,
+    ChevronRight,
+    EyeOff as EyeOffIcon
 } from "lucide-react"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 import { Button } from "@/components/ui/button"
@@ -43,6 +46,39 @@ import { DEFAULT_THEME_COLORS, type StorefrontThemeConfig } from "@/lib/storefro
 
 
 
+
+const SECTION_ELEMENTS: Record<string, { label: string, key: string }[]> = {
+    hero: [
+        { label: "Main Title", key: "heroTitle" },
+        { label: "Highlight Title", key: "heroTitleHighlight" },
+        { label: "Description", key: "heroDescription" },
+        { label: "CTA Button", key: "heroCTA" },
+        { label: "Category Quick Links", key: "heroQuickLinks" },
+        { label: "Featured Product Card", key: "heroFeaturedCard" },
+    ],
+    categories: [
+        { label: "Section Title", key: "categoryTitle" },
+        { label: "Section Subtitle", key: "categorySubtitle" },
+        { label: "Category Carousel", key: "categoryList" },
+    ],
+    about: [
+        { label: "Story Title", key: "aboutTitle" },
+        { label: "Story Content", key: "aboutContent" },
+    ],
+    featured: [
+        { label: "Header Text", key: "featuredHeader" },
+        { label: "Section Title", key: "featuredTitle" },
+        { label: "Section Subtitle", key: "featuredSubtitle" },
+        { label: "Product Grid", key: "featuredGrid" },
+        { label: "CTA Button", key: "featuredCTA" },
+    ],
+    footer: [
+        { label: "Brand Logo", key: "footerBrand" },
+        { label: "Mission Statement", key: "footerMission" },
+        { label: "Social Links", key: "footerSocials" },
+        { label: "Shop/Support Links", key: "footerColumns" },
+    ]
+}
 
 export default function VisualEditorPage() {
     const router = useRouter()
@@ -66,6 +102,33 @@ export default function VisualEditorPage() {
     const [isSaving, setIsSaving] = useState(false)
     const [activeTab, setActiveTab] = useState("sections")
     const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+    const [expandedSections, setExpandedSections] = useState<string[]>([])
+
+    const toggleSectionExpansion = (id: string) => {
+        setExpandedSections(prev =>
+            prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+        )
+    }
+
+    const toggleElementVisibility = (sectionId: string, elementKey: string) => {
+        const newLayout = config.experimental.layout.map((section: any) => {
+            if (section.id === sectionId) {
+                const hiddenFields = section.hiddenFields || []
+                const newHiddenFields = hiddenFields.includes(elementKey)
+                    ? hiddenFields.filter((k: string) => k !== elementKey)
+                    : [...hiddenFields, elementKey]
+                return { ...section, hiddenFields: newHiddenFields }
+            }
+            return section
+        })
+        updateConfig({
+            ...config,
+            experimental: {
+                ...config.experimental,
+                layout: newLayout
+            }
+        })
+    }
 
     // Helper to update config and push to history
     const updateConfig = (newConfigOrUpdater: any) => {
@@ -373,54 +436,92 @@ export default function VisualEditorPage() {
                                                     ref={provided.innerRef}
                                                     className="space-y-4"
                                                 >
-                                                    {(config.experimental?.layout || []).map((section: any, idx: number) => (
-                                                        <Draggable key={section.id} draggableId={section.id} index={idx}>
-                                                            {(provided, snapshot) => (
-                                                                <div
-                                                                    ref={provided.innerRef}
-                                                                    {...provided.draggableProps}
-                                                                    className={`${snapshot.isDragging ? "z-50 shadow-2xl scale-105" : ""} transition-transform`}
-                                                                >
-                                                                    <Card className={`p-4 border-2 ${snapshot.isDragging ? "border-primary bg-white" : "border-border/50 hover:border-primary/30 bg-white"} transition-all group shadow-none rounded-2xl`}>
-                                                                        <div className="flex items-center gap-4">
-                                                                            <div
-                                                                                {...provided.dragHandleProps}
-                                                                                className="text-muted-foreground group-hover:text-primary transition-colors cursor-grab active:cursor-grabbing"
-                                                                            >
-                                                                                <GripVertical className="size-4" />
-                                                                            </div>
-                                                                            <div className="flex-1">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <span className="text-xs font-black uppercase tracking-tight text-foreground">{section.type}</span>
-                                                                                    {!section.enabled && <Badge variant="outline" className="text-[8px] px-1.5 h-4 opacity-50">Hidden</Badge>}
-                                                                                </div>
-                                                                            </div>
-                                                                            <Popover>
-                                                                                <PopoverTrigger asChild>
-                                                                                    <Button
-                                                                                        variant="ghost"
-                                                                                        size="icon"
-                                                                                        className="size-8 rounded-lg"
+                                                    {(config.experimental?.layout || []).map((section: any, idx: number) => {
+                                                        const isExpanded = expandedSections.includes(section.id)
+                                                        const elements = SECTION_ELEMENTS[section.type] || []
+
+                                                        return (
+                                                            <Draggable key={section.id} draggableId={section.id} index={idx}>
+                                                                {(provided, snapshot) => (
+                                                                    <div
+                                                                        ref={provided.innerRef}
+                                                                        {...provided.draggableProps}
+                                                                        className={`${snapshot.isDragging ? "z-50 shadow-2xl scale-105" : ""} transition-transform`}
+                                                                    >
+                                                                        <Card className={`overflow-hidden border-2 ${snapshot.isDragging ? "border-primary bg-white" : "border-border/50 hover:border-primary/30 bg-white"} transition-all group shadow-none rounded-2xl`}>
+                                                                            <div className="p-4">
+                                                                                <div className="flex items-center gap-4">
+                                                                                    <div
+                                                                                        {...provided.dragHandleProps}
+                                                                                        className="text-muted-foreground group-hover:text-primary transition-colors cursor-grab active:cursor-grabbing"
                                                                                     >
-                                                                                        <MoreHorizontal className="size-4 opacity-40 hover:opacity-100" />
-                                                                                    </Button>
-                                                                                </PopoverTrigger>
-                                                                                <PopoverContent className="w-80 rounded-[2rem] p-6 shadow-2xl border-2" side="right" align="start">
-                                                                                    <div className="space-y-4">
-                                                                                        <div>
-                                                                                            <h4 className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
-                                                                                                <Settings2 className="size-4 text-primary" />
-                                                                                                Section Settings
-                                                                                            </h4>
-                                                                                            <p className="text-[10px] font-bold text-muted-foreground mt-1">Customize the appearance of this {section.type} section.</p>
+                                                                                        <GripVertical className="size-4" />
+                                                                                    </div>
+                                                                                    <div
+                                                                                        className="flex-1 cursor-pointer flex items-center gap-2"
+                                                                                        onClick={() => toggleSectionExpansion(section.id)}
+                                                                                    >
+                                                                                        {isExpanded ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-xs font-black uppercase tracking-tight text-foreground">{section.type}</span>
+                                                                                            {!section.enabled && <span className="text-[10px] font-bold text-muted-foreground/50">Hidden from page</span>}
                                                                                         </div>
-                                                                                        <Separator />
-                                                                                        <SectionSettings
-                                                                                            background={section.background}
-                                                                                            onChange={(background) => {
-                                                                                                const newLayout = config.experimental.layout.map((item: any) => {
-                                                                                                    if (item.id === section.id) {
-                                                                                                        return { ...item, background }
+                                                                                    </div>
+
+                                                                                    <div className="flex items-center gap-1">
+                                                                                        <Popover>
+                                                                                            <PopoverTrigger asChild>
+                                                                                                <Button
+                                                                                                    variant="ghost"
+                                                                                                    size="icon"
+                                                                                                    className="size-8 rounded-lg"
+                                                                                                    title="Section Styles & Content"
+                                                                                                >
+                                                                                                    <MoreHorizontal className="size-4 opacity-40 hover:opacity-100" />
+                                                                                                </Button>
+                                                                                            </PopoverTrigger>
+                                                                                            <PopoverContent className="w-80 rounded-[2rem] p-6 shadow-2xl border-2" side="right" align="start">
+                                                                                                <div className="space-y-4">
+                                                                                                    <div>
+                                                                                                        <h4 className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
+                                                                                                            <Settings2 className="size-4 text-primary" />
+                                                                                                            Section Settings
+                                                                                                        </h4>
+                                                                                                        <p className="text-[10px] font-bold text-muted-foreground mt-1">Customize the appearance of this {section.type} section.</p>
+                                                                                                    </div>
+                                                                                                    <Separator />
+                                                                                                    <SectionSettings
+                                                                                                        sectionType={section.type}
+                                                                                                        background={section.background}
+                                                                                                        onChange={(background) => {
+                                                                                                            const newLayout = config.experimental.layout.map((item: any) => {
+                                                                                                                if (item.id === section.id) {
+                                                                                                                    return { ...item, background }
+                                                                                                                }
+                                                                                                                return item
+                                                                                                            })
+                                                                                                            updateConfig({
+                                                                                                                ...config,
+                                                                                                                experimental: {
+                                                                                                                    ...config.experimental,
+                                                                                                                    layout: newLayout
+                                                                                                                }
+                                                                                                            })
+                                                                                                        }}
+                                                                                                    />
+                                                                                                </div>
+                                                                                            </PopoverContent>
+                                                                                        </Popover>
+
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="icon"
+                                                                                            className="size-8 rounded-lg"
+                                                                                            title={section.enabled ? "Hide Section" : "Show Section"}
+                                                                                            onClick={() => {
+                                                                                                const newLayout = config.experimental.layout.map((item: any, i: number) => {
+                                                                                                    if (i === idx) {
+                                                                                                        return { ...item, enabled: !item.enabled }
                                                                                                     }
                                                                                                     return item
                                                                                                 })
@@ -432,53 +533,48 @@ export default function VisualEditorPage() {
                                                                                                     }
                                                                                                 })
                                                                                             }}
-                                                                                            onDelete={() => {
-                                                                                                const newLayout = config.experimental.layout.filter((item: any) => item.id !== section.id)
-                                                                                                updateConfig({
-                                                                                                    ...config,
-                                                                                                    experimental: {
-                                                                                                        ...config.experimental,
-                                                                                                        layout: newLayout
-                                                                                                    }
-                                                                                                })
-                                                                                                toast({
-                                                                                                    title: "Section Deleted",
-                                                                                                    description: `The ${section.type} section has been removed.`,
-                                                                                                })
-                                                                                            }}
-                                                                                        />
+                                                                                        >
+                                                                                            {section.enabled ? <Eye className="size-4 opacity-40 hover:opacity-100" /> : <EyeOffIcon className="size-4 text-primary" />}
+                                                                                        </Button>
                                                                                     </div>
-                                                                                </PopoverContent>
-                                                                            </Popover>
+                                                                                </div>
+                                                                            </div>
 
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                className="size-8 rounded-lg"
-                                                                                onClick={() => {
-                                                                                    const newLayout = config.experimental.layout.map((item: any, i: number) => {
-                                                                                        if (i === idx) {
-                                                                                            return { ...item, enabled: !item.enabled }
-                                                                                        }
-                                                                                        return item
-                                                                                    })
-                                                                                    updateConfig({
-                                                                                        ...config,
-                                                                                        experimental: {
-                                                                                            ...config.experimental,
-                                                                                            layout: newLayout
-                                                                                        }
-                                                                                    })
-                                                                                }}
-                                                                            >
-                                                                                {section.enabled ? <Eye className="size-4 opacity-40 hover:opacity-100" /> : <EyeOff className="size-4 text-primary" />}
-                                                                            </Button>
-                                                                        </div>
-                                                                    </Card>
-                                                                </div>
-                                                            )}
-                                                        </Draggable>
-                                                    ))}
+                                                                            {isExpanded && elements.length > 0 && (
+                                                                                <div className="bg-muted/30 border-t border-border/50 p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
+                                                                                    <div className="flex items-center gap-2 mb-2">
+                                                                                        <Layers className="size-3 text-muted-foreground/50" />
+                                                                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">Element Breakdown</span>
+                                                                                    </div>
+                                                                                    <div className="space-y-1">
+                                                                                        {elements.map((el) => {
+                                                                                            const isHidden = section.hiddenFields?.includes(el.key)
+                                                                                            return (
+                                                                                                <div key={el.key} className="flex items-center justify-between group/el py-1">
+                                                                                                    <span className={`text-[11px] font-bold ${isHidden ? 'text-muted-foreground/40 line-through' : 'text-muted-foreground'}`}>
+                                                                                                        {el.label}
+                                                                                                    </span>
+                                                                                                    <Button
+                                                                                                        variant="ghost"
+                                                                                                        size="icon"
+                                                                                                        className="size-6 rounded-md hover:bg-white"
+                                                                                                        onClick={() => toggleElementVisibility(section.id, el.key)}
+                                                                                                        title={isHidden ? "Show Element" : "Hide Element"}
+                                                                                                    >
+                                                                                                        {isHidden ? <EyeOffIcon className="size-3 text-primary" /> : <Eye className="size-3 opacity-30 group-hover/el:opacity-100" />}
+                                                                                                    </Button>
+                                                                                                </div>
+                                                                                            )
+                                                                                        })}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                        </Card>
+                                                                    </div>
+                                                                )}
+                                                            </Draggable>
+                                                        )
+                                                    })}
                                                     {provided.placeholder}
                                                 </div>
                                             )}

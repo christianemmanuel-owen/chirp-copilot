@@ -1,6 +1,6 @@
 interface SectionHeaderProps {
-    title: string
-    subtitle: string
+    title?: string
+    subtitle?: string
     center?: boolean
 }
 

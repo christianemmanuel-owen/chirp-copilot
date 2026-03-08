@@ -15,7 +15,8 @@ import {
     Sparkles,
     Ghost,
     Square,
-    Trash2
+    EyeOff,
+    Search
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -31,14 +32,19 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 
-const FONT_OPTIONS = [
-    { label: "Default", value: "inherit" },
-    { label: "Modern Sans", value: "var(--font-geist-sans)" },
-    { label: "Tech Mono", value: "var(--font-geist-mono)" },
-    { label: "Boutique Serif", value: "var(--font-playfair-display)" },
-    { label: "Geometric", value: "var(--font-inter)" },
-    { label: "Wide Grotesk", value: "var(--font-space-grotesk)" },
-]
+import {
+    STORE_FONT_OPTIONS,
+    getFontDefinition,
+} from "@/lib/storefront-theme"
+import { ChevronsUpDown } from "lucide-react"
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command"
 
 interface InlineStyleToolbarProps {
     target: HTMLElement
@@ -48,6 +54,8 @@ interface InlineStyleToolbarProps {
 
 export default function InlineStyleToolbar({ target, onUpdate, onClose }: InlineStyleToolbarProps) {
     const [fontSize, setFontSize] = useState(parseInt(window.getComputedStyle(target).fontSize))
+    const [fontOpen, setFontOpen] = useState(false)
+    const [fontSearch, setFontSearch] = useState("")
     const [fontFamily, setFontFamily] = useState(() => {
         // Try to get the specific font from the style or data attribute if possible
         const inlineFont = target.style.fontFamily
@@ -55,8 +63,11 @@ export default function InlineStyleToolbar({ target, onUpdate, onClose }: Inline
 
         // Fallback to computed style but matched against our options if possible
         const computed = window.getComputedStyle(target).fontFamily
-        const matched = FONT_OPTIONS.find(f => f.value !== 'inherit' && computed.includes(f.label))
-        return matched ? matched.value : "inherit"
+        const matched = STORE_FONT_OPTIONS.find(f => {
+            const fontName = f.label.toLowerCase()
+            return computed.toLowerCase().includes(fontName)
+        })
+        return matched ? matched.stack : "inherit"
     })
     const [color, setColor] = useState(window.getComputedStyle(target).color)
     const [rect, setRect] = useState(target.getBoundingClientRect())
@@ -143,7 +154,7 @@ export default function InlineStyleToolbar({ target, onUpdate, onClose }: Inline
         }
     }
 
-    const handleDelete = () => {
+    const handleHide = () => {
         target.style.display = 'none'
         onUpdate({ display: 'none' })
         onClose()
@@ -223,25 +234,69 @@ export default function InlineStyleToolbar({ target, onUpdate, onClose }: Inline
                 opacity: toolbarSize.width === 0 ? 0 : 1 // Avoid initial flicker
             }}
         >
-            {/* Font Family */}
-            <Select
-                value={fontFamily}
-                onValueChange={(val) => {
-                    setFontFamily(val)
-                    updateStyle('fontFamily', val)
-                }}
-            >
-                <SelectTrigger className="w-[140px] h-9 rounded-xl font-bold border-none bg-muted/50">
-                    <SelectValue placeholder="Font" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl" data-editing-ui="true">
-                    {FONT_OPTIONS.map(font => (
-                        <SelectItem key={font.value} value={font.value} style={{ fontFamily: font.value }}>
-                            {font.label}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+            {/* Font Family Dropdown */}
+            <Popover open={fontOpen} onOpenChange={setFontOpen}>
+                <PopoverTrigger asChild>
+                    <div className="relative group/font">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground transition-colors group-focus-within/font:text-primary" />
+                        <Input
+                            placeholder={STORE_FONT_OPTIONS.find(f => f.stack === fontFamily)?.label || "Search fonts..."}
+                            value={fontSearch}
+                            onChange={(e) => {
+                                setFontSearch(e.target.value)
+                                if (!fontOpen) setFontOpen(true)
+                            }}
+                            onFocus={() => setFontOpen(true)}
+                            className="w-[180px] h-9 pl-9 pr-3 rounded-xl bg-muted/50 border-none focus-visible:ring-1 focus-visible:ring-primary/30 font-bold text-sm placeholder:text-foreground placeholder:opacity-100 transition-all hover:bg-muted"
+                            onPointerDown={(e) => {
+                                if (fontOpen) e.stopPropagation()
+                            }}
+                        />
+                    </div>
+                </PopoverTrigger>
+                <PopoverContent
+                    className="w-[200px] p-0 rounded-2xl border-border/50 shadow-2xl overflow-hidden"
+                    data-editing-ui="true"
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                >
+                    <Command className="rounded-2xl border-none" contentEditable={false}>
+                        <CommandList className="max-h-[250px] scrollbar-hide">
+                            <CommandEmpty className="text-[10px] py-10 px-4 text-center text-muted-foreground/60">No fonts found.</CommandEmpty>
+                            {STORE_FONT_OPTIONS.filter(font => font.label.toLowerCase().includes(fontSearch.toLowerCase())).length > 0 && (
+                                <CommandGroup heading="Font Library" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">
+                                    {STORE_FONT_OPTIONS
+                                        .filter(font => font.label.toLowerCase().includes(fontSearch.toLowerCase()))
+                                        .map((font) => (
+                                            <CommandItem
+                                                key={font.id}
+                                                value={font.label}
+                                                onSelect={() => {
+                                                    setFontFamily(font.stack)
+                                                    updateStyle('fontFamily', font.stack)
+                                                    setFontOpen(false)
+                                                    setFontSearch("")
+                                                }}
+                                                className="flex items-center justify-between py-2.5 px-3 cursor-pointer data-[selected=true]:bg-muted data-[selected=true]:text-[#262626] transition-colors"
+                                            >
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="font-bold text-xs" style={{ fontFamily: font.stack }}>
+                                                        {font.label}
+                                                    </span>
+                                                    <span className="text-[9px] text-muted-foreground font-medium italic truncate max-w-[140px]">
+                                                        {font.description}
+                                                    </span>
+                                                </div>
+                                                {fontFamily === font.stack && (
+                                                    <Check className="h-3 w-3 text-primary shrink-0" />
+                                                )}
+                                            </CommandItem>
+                                        ))}
+                                </CommandGroup>
+                            )}
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+            </Popover>
 
             <Separator orientation="vertical" className="h-4" />
 
@@ -434,7 +489,7 @@ export default function InlineStyleToolbar({ target, onUpdate, onClose }: Inline
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className={`h-7 w-8 px-0 rounded-lg ${borderRadius === 'straight' ? 'bg-background shadow-sm' : 'hover:bg-background/50 text-muted-foreground'}`}
+                                        className={`h - 7 w - 8 px - 0 rounded - lg ${borderRadius === 'straight' ? 'bg-background shadow-sm' : 'hover:bg-background/50 text-muted-foreground'} `}
                                         onClick={() => {
                                             setBorderRadius('straight')
                                             updateStyle('borderRadius', '0px')
@@ -446,7 +501,7 @@ export default function InlineStyleToolbar({ target, onUpdate, onClose }: Inline
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className={`h-7 w-8 px-0 rounded-lg ${borderRadius === 'rounded' ? 'bg-background shadow-sm' : 'hover:bg-background/50 text-muted-foreground'}`}
+                                        className={`h - 7 w - 8 px - 0 rounded - lg ${borderRadius === 'rounded' ? 'bg-background shadow-sm' : 'hover:bg-background/50 text-muted-foreground'} `}
                                         onClick={() => {
                                             setBorderRadius('rounded')
                                             updateStyle('borderRadius', '12px')
@@ -458,7 +513,7 @@ export default function InlineStyleToolbar({ target, onUpdate, onClose }: Inline
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className={`h-7 w-8 px-0 rounded-lg ${borderRadius === 'circular' ? 'bg-background shadow-sm' : 'hover:bg-background/50 text-muted-foreground'}`}
+                                        className={`h - 7 w - 8 px - 0 rounded - lg ${borderRadius === 'circular' ? 'bg-background shadow-sm' : 'hover:bg-background/50 text-muted-foreground'} `}
                                         onClick={() => {
                                             setBorderRadius('circular')
                                             updateStyle('borderRadius', '9999px')
@@ -482,7 +537,7 @@ export default function InlineStyleToolbar({ target, onUpdate, onClose }: Inline
                                 step={1}
                                 onValueChange={([val]) => {
                                     setBorderWidth(val)
-                                    updateStyle('borderWidth', `${val}px`)
+                                    updateStyle('borderWidth', `${val} px`)
                                     if (val > 0 && (borderColor === 'transparent' || !borderColor)) {
                                         setBorderColor('#6355ff')
                                         updateStyle('borderColor', '#6355ff')
@@ -503,7 +558,7 @@ export default function InlineStyleToolbar({ target, onUpdate, onClose }: Inline
                                 step={1}
                                 onValueChange={([val]) => {
                                     setPadding(val)
-                                    updateStyle('padding', `${val}px`)
+                                    updateStyle('padding', `${val} px`)
                                 }}
                             />
                         </div>
@@ -568,11 +623,11 @@ export default function InlineStyleToolbar({ target, onUpdate, onClose }: Inline
             <Button
                 variant="ghost"
                 size="icon"
-                className="size-8 rounded-lg text-muted-foreground hover:bg-destructive hover:text-white transition-colors"
-                onClick={handleDelete}
-                title="Delete Element"
+                className="size-8 rounded-lg text-muted-foreground hover:bg-primary hover:text-white transition-colors"
+                onClick={handleHide}
+                title="Hide Element"
             >
-                <Trash2 className="size-4" />
+                <EyeOff className="size-4" />
             </Button>
 
             <Separator orientation="vertical" className="h-4" />

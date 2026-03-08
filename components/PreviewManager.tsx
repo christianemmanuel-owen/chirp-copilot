@@ -16,12 +16,16 @@ export default function PreviewManager() {
             }
             const path = e.composedPath() as HTMLElement[]
 
-            // Skip if inside no-edit zone
+            // Skip if inside no-edit zone or editing UI
+            const isEditingUI = path.some(el => {
+                if (!el.hasAttribute) return false
+                return el.hasAttribute('data-editing-ui')
+            })
             const isNoEdit = path.some(el => {
                 if (!el.hasAttribute) return false
                 return el.getAttribute?.('data-no-edit') === 'true'
             })
-            if (isNoEdit) return
+            if (isNoEdit || isEditingUI) return
 
             // Only target text elements or specific sections
             const isEditableTag = ['H1', 'H2', 'H3', 'P', 'SPAN', 'A', 'BUTTON'].includes(target.tagName)

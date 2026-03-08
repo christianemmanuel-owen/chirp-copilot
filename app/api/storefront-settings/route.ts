@@ -313,8 +313,8 @@ export async function GET() {
         layout: theme.experimental?.layout ?? [
           { id: "hero-1", type: "hero", enabled: true },
           { id: "categories-1", type: "categories", enabled: true },
-          { id: "about-1", type: "about", enabled: theme.experimental?.aboutUsEnabled ?? true },
-          { id: "featured-1", type: "featured", enabled: theme.experimental?.featuredProductsEnabled ?? true },
+          { id: "about-1", type: "about", enabled: true },
+          { id: "featured-1", type: "featured", enabled: true },
           { id: "footer-1", type: "footer", enabled: true },
         ]
       } as any,
@@ -682,8 +682,8 @@ export async function PATCH(request: Request) {
         layout: appliedTheme.experimental?.layout ?? [
           { id: "hero-1", type: "hero", enabled: true },
           { id: "categories-1", type: "categories", enabled: true },
-          { id: "about-1", type: "about", enabled: appliedTheme.experimental?.aboutUsEnabled ?? true },
-          { id: "featured-1", type: "featured", enabled: appliedTheme.experimental?.featuredProductsEnabled ?? true },
+          { id: "about-1", type: "about", enabled: true },
+          { id: "featured-1", type: "featured", enabled: true },
           { id: "footer-1", type: "footer", enabled: true },
         ]
       },

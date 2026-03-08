@@ -14,15 +14,18 @@ interface CategoryCarouselSectionProps {
     styles?: Record<string, any>
     sectionId?: string
     background?: SectionBackground
+    hiddenFields?: string[]
 }
 
-export default function CategoryCarouselSection({ tiles, styles, sectionId, background }: CategoryCarouselSectionProps) {
+export default function CategoryCarouselSection({ tiles, styles, sectionId, background, hiddenFields }: CategoryCarouselSectionProps) {
     const sectionStyles = getSectionStyles(background)
     const [emblaRef] = useEmblaCarousel({ loop: true }, [
         AutoScroll({ playOnInit: true, speed: 1, stopOnInteraction: false }) as any
     ])
 
-    if (!tiles || tiles.length === 0) return null
+    const isHidden = (key: string) => hiddenFields?.includes(key)
+
+    if (!tiles || tiles.length === 0 || isHidden("categoryList")) return null
 
     // Duplicate tiles to ensure enough items for smooth infinite scroll if few items
     const displayTiles = tiles.length < 6 ? [...tiles, ...tiles, ...tiles] : tiles
@@ -34,12 +37,14 @@ export default function CategoryCarouselSection({ tiles, styles, sectionId, back
             style={sectionStyles}
         >
 
-            <div className="max-w-7xl mx-auto px-6 mb-16">
-                <SectionHeader
-                    title="BROWSE BY CATEGORY"
-                    subtitle="Explore our curated collections at a glance."
-                />
-            </div>
+            {(!isHidden("categoryTitle") || !isHidden("categorySubtitle")) && (
+                <div className="max-w-7xl mx-auto px-6 mb-16">
+                    <SectionHeader
+                        title={!isHidden("categoryTitle") ? "BROWSE BY CATEGORY" : undefined}
+                        subtitle={!isHidden("categorySubtitle") ? "Explore our curated collections at a glance." : undefined}
+                    />
+                </div>
+            )}
 
             <div className="embla overflow-hidden" ref={emblaRef}>
                 <div className="embla__container flex gap-8 px-6">

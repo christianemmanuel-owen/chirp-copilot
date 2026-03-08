@@ -39,6 +39,7 @@ type StorefrontSettingsRow = Database["public"]["Tables"]["storefront_settings"]
 export interface NavCollectionItem {
   id: number
   name: string
+  image: string
   href: string
   kind: CollectionTileKind
 }
@@ -744,11 +745,11 @@ export async function getCatalogData(): Promise<CatalogData> {
   const discountFilter =
     discountPromotion && discountPromotion.variantIds.length > 0
       ? {
-          campaignId: discountPromotion.campaignId,
-          name: discountPromotion.campaignName,
-          description: discountPromotion.description,
-          variantIds: discountPromotion.variantIds,
-        }
+        campaignId: discountPromotion.campaignId,
+        name: discountPromotion.campaignName,
+        description: discountPromotion.description,
+        variantIds: discountPromotion.variantIds,
+      }
       : undefined
 
   if (discountPercentMap.size > 0) {
@@ -984,6 +985,7 @@ export async function getCatalogData(): Promise<CatalogData> {
     .map((brand) => ({
       id: brand.id,
       name: brand.name,
+      image: brand.image,
       href: brand.href,
       kind: "brand" as const,
     }))
@@ -993,6 +995,7 @@ export async function getCatalogData(): Promise<CatalogData> {
     .map((category) => ({
       id: category.id,
       name: category.name,
+      image: category.image,
       href: category.href,
       kind: "category" as const,
     }))

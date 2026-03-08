@@ -1,4 +1,20 @@
-export type StorefrontFontId = "geist-sans" | "geist-mono" | "inter" | "playfair-display" | "space-grotesk"
+export type StorefrontFontId =
+  | "geist-sans"
+  | "geist-mono"
+  | "inter"
+  | "playfair-display"
+  | "space-grotesk"
+  | "roboto"
+  | "montserrat"
+  | "lato"
+  | "merriweather"
+  | "oswald"
+  | "raleway"
+  | "nunito"
+  | "outfit"
+  | "syne"
+  | "plus-jakarta-sans"
+  | "bricolage-grotesque"
 
 export interface StorefrontThemeColors {
   background: string
@@ -54,6 +70,7 @@ export interface StorefrontThemeConfig {
       type: 'hero' | 'categories' | 'about' | 'featured' | 'footer'
       enabled: boolean
       background?: SectionBackground
+      hiddenFields?: string[]
       content?: Record<string, any>
       styles?: Record<string, {
         fontFamily?: string
@@ -104,6 +121,72 @@ export const STORE_FONT_OPTIONS: StorefrontFontDefinition[] = [
     label: "Playfair Display",
     description: "High-contrast serif for boutique experiences.",
     stack: "var(--font-playfair-display), 'Playfair Display', 'Georgia', serif",
+  },
+  {
+    id: "roboto",
+    label: "Roboto",
+    description: "Modern, geometric yet friendly sans-serif.",
+    stack: "var(--font-roboto), 'Roboto', " + SYSTEM_STACK,
+  },
+  {
+    id: "montserrat",
+    label: "Montserrat",
+    description: "Classic geometric sans with a modern feel.",
+    stack: "var(--font-montserrat), 'Montserrat', " + SYSTEM_STACK,
+  },
+  {
+    id: "lato",
+    label: "Lato",
+    description: "Stylish sans-serif with rounded details.",
+    stack: "var(--font-lato), 'Lato', " + SYSTEM_STACK,
+  },
+  {
+    id: "merriweather",
+    label: "Merriweather",
+    description: "Highly readable serif designed for screens.",
+    stack: "var(--font-merriweather), 'Merriweather', serif",
+  },
+  {
+    id: "oswald",
+    label: "Oswald",
+    description: "Condensed bold sans-serif for strong headlines.",
+    stack: "var(--font-oswald), 'Oswald', sans-serif",
+  },
+  {
+    id: "raleway",
+    label: "Raleway",
+    description: "Elegant sans-serif with unique personality.",
+    stack: "var(--font-raleway), 'Raleway', sans-serif",
+  },
+  {
+    id: "nunito",
+    label: "Nunito",
+    description: "Soft, rounded sans-serif for a friendly vibe.",
+    stack: "var(--font-nunito), 'Nunito', sans-serif",
+  },
+  {
+    id: "outfit",
+    label: "Outfit",
+    description: "Modern geometric sans for a premium brand.",
+    stack: "var(--font-outfit), 'Outfit', " + SYSTEM_STACK,
+  },
+  {
+    id: "syne",
+    label: "Syne",
+    description: "Artistic and bold for high-impact design.",
+    stack: "var(--font-syne), 'Syne', sans-serif",
+  },
+  {
+    id: "plus-jakarta-sans",
+    label: "Plus Jakarta Sans",
+    description: "Clean, modern, and highly versatile sans.",
+    stack: "var(--font-plus-jakarta-sans), 'Plus Jakarta Sans', sans-serif",
+  },
+  {
+    id: "bricolage-grotesque",
+    label: "Bricolage Grotesque",
+    description: "Quirky and full of character for a unique brand.",
+    stack: "var(--font-bricolage-grotesque), 'Bricolage Grotesque', sans-serif",
   },
 ]
 
@@ -192,11 +275,11 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
         footerNewsletterBlurb: "Join our inner circle for exclusive drops and design stories."
       },
       layout: [
-        { id: "hero-1", type: "hero", enabled: true },
-        { id: "categories-1", type: "categories", enabled: true },
-        { id: "about-1", type: "about", enabled: false },
-        { id: "featured-1", type: "featured", enabled: false },
-        { id: "footer-1", type: "footer", enabled: true },
+        { id: "hero-1", type: "hero", enabled: true, hiddenFields: [] },
+        { id: "categories-1", type: "categories", enabled: true, hiddenFields: [] },
+        { id: "about-1", type: "about", enabled: false, hiddenFields: [] },
+        { id: "featured-1", type: "featured", enabled: false, hiddenFields: [] },
+        { id: "footer-1", type: "footer", enabled: true, hiddenFields: [] },
       ]
     }
     return base
@@ -239,24 +322,25 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
         dropdownMode: exp.navbar?.dropdownMode ?? 'categories'
       },
       content: {
-        heroTitle: exp.content?.heroTitle ?? "Exquisite Pieces.",
-        heroTitleHighlight: exp.content?.heroTitleHighlight ?? "Designed for life.",
-        heroDescription: exp.content?.heroDescription ?? "Elevate your lifestyle with our premium collection of hand-picked goods.",
-        featuredTitle: exp.content?.featuredTitle ?? "Featured Collection",
-        featuredSubtitle: exp.content?.featuredSubtitle ?? "Our most coveted pieces, selected for you.",
-        aboutTitle: exp.content?.aboutTitle ?? "Our Commitment to Quality",
-        aboutContent: exp.content?.aboutContent ?? "We believe that the objects you surround yourself with should be as intentional as the life you lead. Each piece in our collection is selected for its superior craftsmanship, timeless design, and functional excellence.",
-        heroCTALink: exp.content?.heroCTALink ?? "/catalog",
-        featuredCTALink: exp.content?.featuredCTALink ?? "/catalog",
-        footerMission: exp.content?.footerMission ?? "Elevating your lifestyle with curated, high-end essentials designed for intentional living.",
-        footerNewsletterBlurb: exp.content?.footerNewsletterBlurb ?? "Join our inner circle for exclusive drops and design stories."
+        heroTitle: "Exquisite Pieces.",
+        heroTitleHighlight: "Designed for life.",
+        heroDescription: "Elevate your lifestyle with our premium collection of hand-picked goods.",
+        featuredTitle: "Featured Collection",
+        featuredSubtitle: "Our most coveted pieces, selected for you.",
+        aboutTitle: "Our Commitment to Quality",
+        aboutContent: "We believe that the objects you surround yourself with should be as intentional as the life you lead. Each piece in our collection is selected for its superior craftsmanship, timeless design, and functional excellence.",
+        heroCTALink: "/catalog",
+        featuredCTALink: "/catalog",
+        footerMission: "Elevating your lifestyle with curated, high-end essentials designed for intentional living.",
+        footerNewsletterBlurb: "Join our inner circle for exclusive drops and design stories.",
+        ...(exp.content || {}),
       },
       layout: Array.isArray(exp.layout) ? exp.layout : [
-        { id: "hero-1", type: "hero", enabled: true },
-        { id: "categories-1", type: "categories", enabled: true },
-        { id: "about-1", type: "about", enabled: exp.aboutUsEnabled ?? true },
-        { id: "featured-1", type: "featured", enabled: exp.featuredProductsEnabled ?? true },
-        { id: "footer-1", type: "footer", enabled: true },
+        { id: "hero-1", type: "hero", enabled: true, hiddenFields: [] },
+        { id: "categories-1", type: "categories", enabled: true, hiddenFields: [] },
+        { id: "about-1", type: "about", enabled: exp.aboutUsEnabled ?? true, hiddenFields: [] },
+        { id: "featured-1", type: "featured", enabled: exp.featuredProductsEnabled ?? true, hiddenFields: [] },
+        { id: "footer-1", type: "footer", enabled: true, hiddenFields: [] },
       ]
     }
   } else {
@@ -284,11 +368,11 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
         footerNewsletterBlurb: "Join our inner circle for exclusive drops and design stories."
       },
       layout: [
-        { id: "hero-1", type: "hero", enabled: true },
-        { id: "categories-1", type: "categories", enabled: true },
-        { id: "about-1", type: "about", enabled: false },
-        { id: "featured-1", type: "featured", enabled: false },
-        { id: "footer-1", type: "footer", enabled: true },
+        { id: "hero-1", type: "hero", enabled: true, hiddenFields: [] },
+        { id: "categories-1", type: "categories", enabled: true, hiddenFields: [] },
+        { id: "about-1", type: "about", enabled: false, hiddenFields: [] },
+        { id: "featured-1", type: "featured", enabled: false, hiddenFields: [] },
+        { id: "footer-1", type: "footer", enabled: true, hiddenFields: [] },
       ]
     }
   }

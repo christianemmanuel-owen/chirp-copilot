@@ -2,7 +2,22 @@ import type React from "react"
 import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
-import { Inter, Playfair_Display, Space_Grotesk } from "next/font/google"
+import {
+  Inter,
+  Playfair_Display,
+  Space_Grotesk,
+  Roboto,
+  Montserrat,
+  Lato,
+  Merriweather,
+  Oswald,
+  Raleway,
+  Nunito,
+  Outfit,
+  Syne,
+  Plus_Jakarta_Sans,
+  Bricolage_Grotesque
+} from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { Suspense } from "react"
@@ -17,6 +32,17 @@ const DEFAULT_ICON = "/icon.png"
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" })
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair-display", display: "swap" })
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk", display: "swap" })
+const roboto = Roboto({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-roboto", display: "swap" })
+const montserrat = Montserrat({ subsets: ["latin"], variable: "--font-montserrat", display: "swap" })
+const lato = Lato({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-lato", display: "swap" })
+const merriweather = Merriweather({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-merriweather", display: "swap" })
+const oswald = Oswald({ subsets: ["latin"], variable: "--font-oswald", display: "swap" })
+const raleway = Raleway({ subsets: ["latin"], variable: "--font-raleway", display: "swap" })
+const nunito = Nunito({ subsets: ["latin"], variable: "--font-nunito", display: "swap" })
+const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit", display: "swap" })
+const syne = Syne({ subsets: ["latin"], variable: "--font-syne", display: "swap" })
+const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-plus-jakarta-sans", display: "swap" })
+const bricolageGrotesque = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-bricolage-grotesque", display: "swap" })
 
 export const metadata: Metadata = {
   title: BUSINESS_NAME,
@@ -62,7 +88,8 @@ export default async function RootLayout({
         <link rel="apple-touch-icon" href={faviconUrl} />
       </head>
       <body
-        className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${inter.variable} ${spaceGrotesk.variable} ${playfair.variable}`}
+        className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${inter.variable} ${playfair.variable} ${spaceGrotesk.variable} ${roboto.variable} ${montserrat.variable} ${lato.variable} ${merriweather.variable} ${oswald.variable} ${raleway.variable} ${nunito.variable} ${outfit.variable} ${syne.variable} ${plusJakartaSans.variable} ${bricolageGrotesque.variable}`}
+        style={themeStyles as React.CSSProperties}
       >
 
         <StoreProvider>

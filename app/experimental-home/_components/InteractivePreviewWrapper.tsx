@@ -94,6 +94,7 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                                 heroCTALink={experimental.content?.heroCTALink}
                                 styles={section.styles}
                                 background={section.background}
+                                hiddenFields={section.hiddenFields}
                             />
                         )
 
@@ -105,6 +106,7 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                                 tiles={catalogData.categoryTiles}
                                 styles={section.styles}
                                 background={section.background}
+                                hiddenFields={section.hiddenFields}
                             />
                         )
                     case "about":
@@ -116,6 +118,7 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                                 content={experimental.content?.aboutContent}
                                 styles={section.styles}
                                 background={section.background}
+                                hiddenFields={section.hiddenFields}
                             />
                         )
                     case "featured":
@@ -129,6 +132,7 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                                 featuredCTALink={experimental.content?.featuredCTALink}
                                 styles={section.styles}
                                 background={section.background}
+                                hiddenFields={section.hiddenFields}
                             />
                         )
                     case "footer":
@@ -141,6 +145,7 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                                 newsletterBlurb={experimental.content?.footerNewsletterBlurb}
                                 styles={section.styles}
                                 background={section.background}
+                                hiddenFields={section.hiddenFields}
                             />
                         )
 

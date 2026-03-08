@@ -31,7 +31,10 @@ import { cn } from "@/lib/utils"
 import type { SectionBackground } from "@/lib/storefront-theme"
 import { useToast } from "@/hooks/use-toast"
 
+import { Textarea } from "@/components/ui/textarea"
+
 interface SectionSettingsProps {
+    sectionType: string
     background?: SectionBackground
     onChange: (background: SectionBackground) => void
     onDelete?: () => void
@@ -50,7 +53,12 @@ const DIRECTIONS = [
     { id: "to top left", icon: ArrowUpLeft },
 ]
 
-export default function SectionSettings({ background, onChange, onDelete }: SectionSettingsProps) {
+export default function SectionSettings({
+    sectionType,
+    background,
+    onChange,
+    onDelete
+}: SectionSettingsProps) {
     const { toast } = useToast()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [isUploading, setIsUploading] = useState(false)
