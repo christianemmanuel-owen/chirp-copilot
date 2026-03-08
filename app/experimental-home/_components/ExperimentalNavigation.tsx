@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { ShoppingCart, User, Package, ChevronDown, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -54,15 +54,15 @@ export default function ExperimentalNavigation({
     }
 
     // Hover delay logic
-    let closeTimeout: NodeJS.Timeout
+    const closeTimeout = useRef<NodeJS.Timeout | null>(null)
     const handleMouseEnter = () => {
-        if (closeTimeout) clearTimeout(closeTimeout)
+        if (closeTimeout.current) clearTimeout(closeTimeout.current)
         setIsDropdownOpen(true)
     }
     const handleMouseLeave = () => {
-        closeTimeout = setTimeout(() => {
+        closeTimeout.current = setTimeout(() => {
             setIsDropdownOpen(false)
-        }, 150)
+        }, 250)
     }
 
     return (
@@ -94,7 +94,7 @@ export default function ExperimentalNavigation({
                             onMouseLeave={handleMouseLeave}
                             className="relative"
                         >
-                            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+                            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen} modal={false}>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="rounded-full font-bold gap-1 hover:bg-foreground/5 hover:text-foreground">
                                         {dropdownLabel}
@@ -105,6 +105,9 @@ export default function ExperimentalNavigation({
                                     align="start"
                                     className="rounded-[2.5rem] p-6 min-w-[360px] border-none shadow-2xl bg-white/95 backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300"
                                     data-no-edit="true"
+                                    onMouseEnter={handleMouseEnter}
+                                    onMouseLeave={handleMouseLeave}
+                                    sideOffset={-2}
                                 >
                                     <div className="grid grid-cols-2 gap-4 mb-6">
                                         {navItems.map((item) => (

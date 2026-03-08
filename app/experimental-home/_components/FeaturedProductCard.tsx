@@ -83,9 +83,16 @@ export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight 
     return (
         <article
             className={cn(
-                "group relative w-full rounded-[2.5rem] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.2)] transition-all duration-700 ease-out border border-white/10",
+                "group relative w-full rounded-[2.5rem] overflow-hidden isolate transform-gpu shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.2)] transition-all duration-700 ease-out border border-white/10 z-10",
                 isSpotlight ? "aspect-auto h-full min-h-[400px]" : "aspect-[3/4]"
             )}
+            style={{
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+                clipPath: 'inset(0 round 2.5rem)',
+                WebkitClipPath: 'inset(0 round 2.5rem)',
+                WebkitMaskImage: '-webkit-radial-gradient(white, black)'
+            } as React.CSSProperties}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >

@@ -26,6 +26,7 @@ import {
     ChevronRight,
     EyeOff as EyeOffIcon
 } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -585,7 +586,7 @@ export default function VisualEditorPage() {
                 </div>
 
                 <div className="flex-1 overflow-hidden">
-                    <Tabs defaultValue="sections" className="h-full flex flex-col">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
                         <div className="px-6 py-4 border-b">
                             <TabsList className="w-full bg-muted p-1 rounded-xl">
                                 <TabsTrigger value="sections" className="flex-1 rounded-lg font-bold py-2">
@@ -601,213 +602,235 @@ export default function VisualEditorPage() {
 
 
                         <TabsContent value="sections" className="m-0 flex-1 overflow-hidden h-full">
-                            <ScrollArea className="h-full px-6 py-4">
-                                <div className="space-y-4 pb-20">
-                                    <div className="flex items-center justify-between">
-                                        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground/50">Active Layout</h2>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 rounded-lg text-xs font-bold text-primary"
-                                            onClick={() => setIsSectionLibraryOpen(true)}
-                                        >
-                                            <Plus className="size-3 mr-1" /> Add Section
-                                        </Button>
-                                    </div>
-
-                                    <DragDropContext onDragEnd={onDragEnd}>
-                                        <Droppable droppableId="sections-list">
-                                            {(provided) => (
-                                                <div
-                                                    {...provided.droppableProps}
-                                                    ref={provided.innerRef}
-                                                    className="space-y-4"
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key="sections"
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 10 }}
+                                    transition={{ duration: 0.2, ease: "easeOut" }}
+                                    className="h-full"
+                                >
+                                    <ScrollArea className="h-full px-6 py-4">
+                                        <div className="space-y-4 pb-20">
+                                            <div className="flex items-center justify-between">
+                                                <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground/50">Active Layout</h2>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 rounded-lg text-xs font-bold text-primary"
+                                                    onClick={() => setIsSectionLibraryOpen(true)}
                                                 >
-                                                    {(config.experimental?.layout || []).map((section: any, idx: number) => {
-                                                        const isExpanded = expandedSections.includes(section.id)
-                                                        const elements = SECTION_ELEMENTS[section.type] || []
+                                                    <Plus className="size-3 mr-1" /> Add Section
+                                                </Button>
+                                            </div>
 
-                                                        return (
-                                                            <Draggable key={section.id} draggableId={section.id} index={idx}>
-                                                                {(provided, snapshot) => (
-                                                                    <div
-                                                                        ref={provided.innerRef}
-                                                                        {...provided.draggableProps}
-                                                                        className={`${snapshot.isDragging ? "z-50 shadow-2xl scale-105" : ""} transition-transform`}
-                                                                    >
-                                                                        <Card className={`overflow-hidden border-2 ${snapshot.isDragging ? "border-primary bg-white" : "border-border/50 hover:border-primary/30 bg-white"} transition-all group shadow-none rounded-2xl`}>
-                                                                            <div className="p-4">
-                                                                                <div className="flex items-center gap-4">
-                                                                                    <div
-                                                                                        {...provided.dragHandleProps}
-                                                                                        className="text-muted-foreground group-hover:text-primary transition-colors cursor-grab active:cursor-grabbing"
-                                                                                    >
-                                                                                        <GripVertical className="size-4" />
-                                                                                    </div>
-                                                                                    <div
-                                                                                        className="flex-1 cursor-pointer flex items-center gap-2"
-                                                                                        onClick={() => toggleSectionExpansion(section.id)}
-                                                                                    >
-                                                                                        {isExpanded ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}
-                                                                                        <div className="flex flex-col">
-                                                                                            <span className="text-xs font-black uppercase tracking-tight text-foreground">{section.type}</span>
-                                                                                            {!section.enabled && <span className="text-[10px] font-bold text-muted-foreground/50">Hidden from page</span>}
-                                                                                        </div>
-                                                                                    </div>
+                                            <DragDropContext onDragEnd={onDragEnd}>
+                                                <Droppable droppableId="sections-list">
+                                                    {(provided) => (
+                                                        <div
+                                                            {...provided.droppableProps}
+                                                            ref={provided.innerRef}
+                                                            className="space-y-4"
+                                                        >
+                                                            {(config.experimental?.layout || []).map((section: any, idx: number) => {
+                                                                const isExpanded = expandedSections.includes(section.id)
+                                                                const elements = SECTION_ELEMENTS[section.type] || []
 
-                                                                                    <div className="flex items-center gap-1">
-                                                                                        <Popover>
-                                                                                            <PopoverTrigger asChild>
+                                                                return (
+                                                                    <Draggable key={section.id} draggableId={section.id} index={idx}>
+                                                                        {(provided, snapshot) => (
+                                                                            <div
+                                                                                ref={provided.innerRef}
+                                                                                {...provided.draggableProps}
+                                                                                className={`${snapshot.isDragging ? "z-50 shadow-2xl scale-105" : ""} transition-transform`}
+                                                                            >
+                                                                                <Card className={`overflow-hidden border-2 ${snapshot.isDragging ? "border-primary bg-white" : "border-border/50 hover:border-primary/30 bg-white"} transition-all group shadow-none rounded-2xl`}>
+                                                                                    <div className="p-4">
+                                                                                        <div className="flex items-center gap-4">
+                                                                                            <div
+                                                                                                {...provided.dragHandleProps}
+                                                                                                className="text-muted-foreground group-hover:text-primary transition-colors cursor-grab active:cursor-grabbing"
+                                                                                            >
+                                                                                                <GripVertical className="size-4" />
+                                                                                            </div>
+                                                                                            <div
+                                                                                                className="flex-1 cursor-pointer flex items-center gap-2"
+                                                                                                onClick={() => toggleSectionExpansion(section.id)}
+                                                                                            >
+                                                                                                {isExpanded ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}
+                                                                                                <div className="flex flex-col">
+                                                                                                    <span className="text-xs font-black uppercase tracking-tight text-foreground">{section.type}</span>
+                                                                                                    {!section.enabled && <span className="text-[10px] font-bold text-muted-foreground/50">Hidden from page</span>}
+                                                                                                </div>
+                                                                                            </div>
+
+                                                                                            <div className="flex items-center gap-1">
+                                                                                                <Popover>
+                                                                                                    <PopoverTrigger asChild>
+                                                                                                        <Button
+                                                                                                            variant="ghost"
+                                                                                                            size="icon"
+                                                                                                            className="size-8 rounded-lg"
+                                                                                                            title="Section Styles & Content"
+                                                                                                        >
+                                                                                                            <MoreHorizontal className="size-4 opacity-40 hover:opacity-100" />
+                                                                                                        </Button>
+                                                                                                    </PopoverTrigger>
+                                                                                                    <PopoverContent className="w-80 rounded-[2rem] p-6 shadow-2xl border-2" side="right" align="start">
+                                                                                                        <div className="space-y-4">
+                                                                                                            <div>
+                                                                                                                <h4 className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
+                                                                                                                    <Settings2 className="size-4 text-primary" />
+                                                                                                                    Section Settings
+                                                                                                                </h4>
+                                                                                                                <p className="text-[10px] font-bold text-muted-foreground mt-1">Customize the appearance of this {section.type} section.</p>
+                                                                                                            </div>
+                                                                                                            <Separator />
+                                                                                                            <SectionSettings
+                                                                                                                sectionType={section.type}
+                                                                                                                background={section.background}
+                                                                                                                section={section}
+                                                                                                                onChange={(background, sectionUpdates) => {
+                                                                                                                    const newLayout = config.experimental.layout.map((item: any) => {
+                                                                                                                        if (item.id === section.id) {
+                                                                                                                            return { ...item, background, ...sectionUpdates }
+                                                                                                                        }
+                                                                                                                        return item
+                                                                                                                    })
+                                                                                                                    updateConfig({
+                                                                                                                        ...config,
+                                                                                                                        experimental: {
+                                                                                                                            ...config.experimental,
+                                                                                                                            layout: newLayout
+                                                                                                                        }
+                                                                                                                    })
+                                                                                                                }}
+                                                                                                            />
+                                                                                                        </div>
+                                                                                                    </PopoverContent>
+                                                                                                </Popover>
+
                                                                                                 <Button
                                                                                                     variant="ghost"
                                                                                                     size="icon"
                                                                                                     className="size-8 rounded-lg"
-                                                                                                    title="Section Styles & Content"
+                                                                                                    title={section.enabled ? "Hide Section" : "Show Section"}
+                                                                                                    onClick={() => {
+                                                                                                        const newLayout = config.experimental.layout.map((item: any, i: number) => {
+                                                                                                            if (i === idx) {
+                                                                                                                return { ...item, enabled: !item.enabled }
+                                                                                                            }
+                                                                                                            return item
+                                                                                                        })
+                                                                                                        updateConfig({
+                                                                                                            ...config,
+                                                                                                            experimental: {
+                                                                                                                ...config.experimental,
+                                                                                                                layout: newLayout
+                                                                                                            }
+                                                                                                        })
+                                                                                                    }}
                                                                                                 >
-                                                                                                    <MoreHorizontal className="size-4 opacity-40 hover:opacity-100" />
+                                                                                                    {section.enabled ? <Eye className="size-4 opacity-40 hover:opacity-100" /> : <EyeOffIcon className="size-4 text-primary" />}
                                                                                                 </Button>
-                                                                                            </PopoverTrigger>
-                                                                                            <PopoverContent className="w-80 rounded-[2rem] p-6 shadow-2xl border-2" side="right" align="start">
-                                                                                                <div className="space-y-4">
-                                                                                                    <div>
-                                                                                                        <h4 className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
-                                                                                                            <Settings2 className="size-4 text-primary" />
-                                                                                                            Section Settings
-                                                                                                        </h4>
-                                                                                                        <p className="text-[10px] font-bold text-muted-foreground mt-1">Customize the appearance of this {section.type} section.</p>
-                                                                                                    </div>
-                                                                                                    <Separator />
-                                                                                                    <SectionSettings
-                                                                                                        sectionType={section.type}
-                                                                                                        background={section.background}
-                                                                                                        section={section}
-                                                                                                        onChange={(background, sectionUpdates) => {
-                                                                                                            const newLayout = config.experimental.layout.map((item: any) => {
-                                                                                                                if (item.id === section.id) {
-                                                                                                                    return { ...item, background, ...sectionUpdates }
-                                                                                                                }
-                                                                                                                return item
-                                                                                                            })
-                                                                                                            updateConfig({
-                                                                                                                ...config,
-                                                                                                                experimental: {
-                                                                                                                    ...config.experimental,
-                                                                                                                    layout: newLayout
-                                                                                                                }
-                                                                                                            })
-                                                                                                        }}
-                                                                                                    />
-                                                                                                </div>
-                                                                                            </PopoverContent>
-                                                                                        </Popover>
 
-                                                                                        <Button
-                                                                                            variant="ghost"
-                                                                                            size="icon"
-                                                                                            className="size-8 rounded-lg"
-                                                                                            title={section.enabled ? "Hide Section" : "Show Section"}
-                                                                                            onClick={() => {
-                                                                                                const newLayout = config.experimental.layout.map((item: any, i: number) => {
-                                                                                                    if (i === idx) {
-                                                                                                        return { ...item, enabled: !item.enabled }
-                                                                                                    }
-                                                                                                    return item
-                                                                                                })
-                                                                                                updateConfig({
-                                                                                                    ...config,
-                                                                                                    experimental: {
-                                                                                                        ...config.experimental,
-                                                                                                        layout: newLayout
-                                                                                                    }
-                                                                                                })
-                                                                                            }}
-                                                                                        >
-                                                                                            {section.enabled ? <Eye className="size-4 opacity-40 hover:opacity-100" /> : <EyeOffIcon className="size-4 text-primary" />}
-                                                                                        </Button>
-
-                                                                                        <Button
-                                                                                            variant="ghost"
-                                                                                            size="icon"
-                                                                                            className="size-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                                                                            title="Delete Section"
-                                                                                            onClick={() => handleRemoveSection(section.id)}
-                                                                                        >
-                                                                                            <Trash2 className="size-4 opacity-40 group-hover:opacity-100" />
-                                                                                        </Button>
+                                                                                                <Button
+                                                                                                    variant="ghost"
+                                                                                                    size="icon"
+                                                                                                    className="size-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                                                                    title="Delete Section"
+                                                                                                    onClick={() => handleRemoveSection(section.id)}
+                                                                                                >
+                                                                                                    <Trash2 className="size-4 opacity-40 group-hover:opacity-100" />
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                        </div>
                                                                                     </div>
-                                                                                </div>
+
+                                                                                    {isExpanded && elements.length > 0 && (
+                                                                                        <div className="bg-muted/30 border-t border-border/50 p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
+                                                                                            <div className="flex items-center gap-2 mb-2">
+                                                                                                <Layers className="size-3 text-muted-foreground/50" />
+                                                                                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">Element Breakdown</span>
+                                                                                            </div>
+                                                                                            <div className="space-y-1">
+                                                                                                {elements.map((el) => {
+                                                                                                    const isHidden = section.hiddenFields?.includes(el.key)
+                                                                                                    return (
+                                                                                                        <div key={el.key} className="flex items-center justify-between group/el py-1">
+                                                                                                            <span className={`text-[11px] font-bold ${isHidden ? 'text-muted-foreground/40 line-through' : 'text-muted-foreground'}`}>
+                                                                                                                {el.label}
+                                                                                                            </span>
+                                                                                                            <Button
+                                                                                                                variant="ghost"
+                                                                                                                size="icon"
+                                                                                                                className="size-6 rounded-md hover:bg-white"
+                                                                                                                onClick={() => toggleElementVisibility(section.id, el.key)}
+                                                                                                                title={isHidden ? "Show Element" : "Hide Element"}
+                                                                                                            >
+                                                                                                                {isHidden ? <EyeOffIcon className="size-3 text-primary" /> : <Eye className="size-3 opacity-30 group-hover/el:opacity-100" />}
+                                                                                                            </Button>
+                                                                                                        </div>
+                                                                                                    )
+                                                                                                })}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </Card>
                                                                             </div>
-
-                                                                            {isExpanded && elements.length > 0 && (
-                                                                                <div className="bg-muted/30 border-t border-border/50 p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-                                                                                    <div className="flex items-center gap-2 mb-2">
-                                                                                        <Layers className="size-3 text-muted-foreground/50" />
-                                                                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">Element Breakdown</span>
-                                                                                    </div>
-                                                                                    <div className="space-y-1">
-                                                                                        {elements.map((el) => {
-                                                                                            const isHidden = section.hiddenFields?.includes(el.key)
-                                                                                            return (
-                                                                                                <div key={el.key} className="flex items-center justify-between group/el py-1">
-                                                                                                    <span className={`text-[11px] font-bold ${isHidden ? 'text-muted-foreground/40 line-through' : 'text-muted-foreground'}`}>
-                                                                                                        {el.label}
-                                                                                                    </span>
-                                                                                                    <Button
-                                                                                                        variant="ghost"
-                                                                                                        size="icon"
-                                                                                                        className="size-6 rounded-md hover:bg-white"
-                                                                                                        onClick={() => toggleElementVisibility(section.id, el.key)}
-                                                                                                        title={isHidden ? "Show Element" : "Hide Element"}
-                                                                                                    >
-                                                                                                        {isHidden ? <EyeOffIcon className="size-3 text-primary" /> : <Eye className="size-3 opacity-30 group-hover/el:opacity-100" />}
-                                                                                                    </Button>
-                                                                                                </div>
-                                                                                            )
-                                                                                        })}
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
-                                                                        </Card>
-                                                                    </div>
-                                                                )}
-                                                            </Draggable>
-                                                        )
-                                                    })}
-                                                    {provided.placeholder}
-                                                </div>
-                                            )}
-                                        </Droppable>
-                                    </DragDropContext>
-                                </div>
-                            </ScrollArea>
+                                                                        )}
+                                                                    </Draggable>
+                                                                )
+                                                            })}
+                                                            {provided.placeholder}
+                                                        </div>
+                                                    )}
+                                                </Droppable>
+                                            </DragDropContext>
+                                        </div>
+                                    </ScrollArea>
+                                </motion.div>
+                            </AnimatePresence>
                         </TabsContent>
 
                         <TabsContent value="styles" className="m-0 flex-1 overflow-hidden h-full">
-                            <ScrollArea className="h-full px-6 py-4">
-                                <div className="pb-20">
-                                    <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 mb-6">
-                                        <p className="text-xs font-medium text-primary/70 leading-relaxed">
-                                            Global styles apply to all components. Use inline editing to override specific elements.
-                                        </p>
-                                    </div>
-                                    <GlobalStylesEditor
-                                        theme={config.theme || {
-                                            fontFamily: 'geist-sans',
-                                            colors: DEFAULT_THEME_COLORS
-                                        }}
-                                        onChange={(updates) => {
-                                            updateConfig((prev: any) => ({
-                                                ...prev,
-                                                theme: {
-                                                    ...prev.theme,
-                                                    ...updates,
-                                                    colors: updates.colors ? { ...prev.theme.colors, ...updates.colors } : prev.theme.colors
-                                                }
-                                            }))
-                                        }}
-                                    />
-                                </div>
-                            </ScrollArea>
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key="styles"
+                                    initial={{ opacity: 0, x: 10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -10 }}
+                                    transition={{ duration: 0.2, ease: "easeOut" }}
+                                    className="h-full"
+                                >
+                                    <ScrollArea className="h-full px-6 py-4">
+                                        <div className="pb-20">
+                                            <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 mb-6">
+                                                <p className="text-xs font-medium text-primary/70 leading-relaxed">
+                                                    Global styles apply to all components. Use inline editing to override specific elements.
+                                                </p>
+                                            </div>
+                                            <GlobalStylesEditor
+                                                theme={config.theme || {
+                                                    fontFamily: 'geist-sans',
+                                                    colors: DEFAULT_THEME_COLORS
+                                                }}
+                                                onChange={(updates) => {
+                                                    updateConfig((prev: any) => ({
+                                                        ...prev,
+                                                        theme: {
+                                                            ...prev.theme,
+                                                            ...updates,
+                                                            colors: updates.colors ? { ...prev.theme.colors, ...updates.colors } : prev.theme.colors
+                                                        }
+                                                    }))
+                                                }}
+                                            />
+                                        </div>
+                                    </ScrollArea>
+                                </motion.div>
+                            </AnimatePresence>
                         </TabsContent>
 
                     </Tabs>
