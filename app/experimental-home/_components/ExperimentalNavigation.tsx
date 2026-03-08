@@ -10,8 +10,10 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 import OrderTrackingDialog from "@/components/order-tracking-dialog"
 import type { NavCollectionItem } from "@/lib/storefront-data"
+import { motion, AnimatePresence } from "framer-motion"
 
 interface ExperimentalNavigationProps {
     businessName: string
@@ -20,6 +22,7 @@ interface ExperimentalNavigationProps {
     dropdownMode: "categories" | "brands"
     navCategories: NavCollectionItem[]
     navBrands: NavCollectionItem[]
+    transparentTheme?: "light" | "dark" | "glass"
 }
 
 export default function ExperimentalNavigation({
@@ -29,17 +32,28 @@ export default function ExperimentalNavigation({
     dropdownMode,
     navCategories,
     navBrands,
+    transparentTheme = "dark",
 }: ExperimentalNavigationProps) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
     const [isScrolled, setIsScrolled] = useState(false)
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+    const [windowWidth, setWindowWidth] = useState(0)
 
     useEffect(() => {
+        setWindowWidth(window.innerWidth)
+        const handleResize = () => setWindowWidth(window.innerWidth)
         const handleScroll = () => {
-            setIsScrolled(window.scrollY > 20)
+            setIsScrolled(window.scrollY > 10)
         }
-        window.addEventListener("scroll", handleScroll)
-        return () => window.removeEventListener("scroll", handleScroll)
+
+        window.addEventListener("scroll", handleScroll, { passive: true })
+        window.addEventListener("resize", handleResize, { passive: true })
+        handleScroll()
+
+        return () => {
+            window.removeEventListener("scroll", handleScroll)
+            window.removeEventListener("resize", handleResize)
+        }
     }, [])
 
     const navItems = dropdownMode === "brands" ? navBrands : navCategories
@@ -65,151 +79,270 @@ export default function ExperimentalNavigation({
         }, 250)
     }
 
+    // Dynamic styles based on theme and scroll
+    const isDark = transparentTheme === "dark"
+    const isLight = transparentTheme === "light"
+    const isGlass = transparentTheme === "glass"
+
+    // Shared animation settings for text and icons
+    const springTransition = {
+        type: "spring",
+        stiffness: 260,
+        damping: 25,
+    } as const
+
+    // Animation Variants
+    const fullWidth = windowWidth > 0 ? windowWidth : "100%"
+    const pillWidth = windowWidth > 0 ? Math.min(1000, windowWidth * 0.9) : "90%"
+
+    const navVariants = {
+        top: {
+            width: fullWidth,
+            height: "96px",
+            borderRadius: "0px",
+            y: 0,
+            backgroundColor: "rgba(255, 255, 255, 0)",
+            backdropFilter: "blur(0px)",
+            borderColor: "rgba(255, 255, 255, 0)",
+            boxShadow: "0 0 0 rgba(0,0,0,0)",
+            paddingLeft: "24px",
+            paddingRight: "24px",
+        },
+        scrolled: {
+            width: pillWidth,
+            height: "64px",
+            borderRadius: "9999px",
+            y: 16,
+            backgroundColor: "rgba(255, 255, 255, 0.8)",
+            backdropFilter: "blur(20px)",
+            borderColor: "rgba(0, 0, 0, 0.05)",
+            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+            paddingLeft: "24px",
+            paddingRight: "24px",
+        }
+    }
+
+    // Text color variants based on transparentTheme
+    const textVariants = {
+        top: {
+            color: isDark ? "rgba(255, 255, 255, 1)" : isLight ? "rgba(0, 0, 0, 0.9)" : "rgba(107, 114, 128, 1)",
+            textShadow: isDark ? "0 1px 2px rgba(0,0,0,0.5)" : isLight ? "0 1px 1px rgba(255,255,255,0.5)" : "none"
+        },
+        scrolled: {
+            color: "rgba(0, 0, 0, 0.9)",
+            textShadow: "none"
+        }
+    }
+
+    const headerGradient = !isScrolled && isDark
+        ? "bg-gradient-to-b from-black/50 via-black/10 to-transparent"
+        : ""
+
     return (
         <header
             data-no-edit="true"
-            className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ease-out flex justify-center ${isScrolled ? "pt-4" : "pt-0"}`}
+            className={cn(
+                "fixed top-0 left-0 right-0 z-50 transition-colors duration-500 ease-out flex justify-center",
+                headerGradient
+            )}
         >
-            <nav className={`transition-all duration-500 ease-out flex items-center justify-between px-6 
-                ${isScrolled
-                    ? "w-[95%] max-w-5xl h-16 bg-background/80 backdrop-blur-xl border border-border/50 shadow-2xl rounded-full"
-                    : "w-full h-24 bg-transparent border-b border-transparent"}`}>
-
-                {/* Branding */}
+            <motion.nav
+                initial="top"
+                animate={isScrolled ? "scrolled" : "top"}
+                variants={navVariants}
+                transition={springTransition}
+                className="flex items-center justify-between"
+            >
                 <div className="flex items-center gap-8">
-                    <Link href="/" className="flex items-center gap-2 group">
-                        {useLogo && faviconUrl ? (
-                            <img src={faviconUrl} alt={businessName} className="size-8 rounded-lg" />
-                        ) : (
-                            <span className={`text-2xl font-black tracking-tighter transition-colors ${isScrolled ? "text-foreground" : "text-foreground"}`}>
-                                {businessName.toUpperCase()}
-                            </span>
-                        )}
+                    {/* Branding */}
+                    <Link href="/" className="flex items-center">
+                        <motion.span
+                            variants={textVariants}
+                            transition={springTransition}
+                            className="text-2xl font-bold tracking-tight"
+                        >
+                            CHIRP
+                        </motion.span>
                     </Link>
 
-                    {/* Desktop Navigation */}
-                    <div className="hidden md:flex items-center gap-1">
-                        <div
-                            onMouseEnter={handleMouseEnter}
-                            onMouseLeave={handleMouseLeave}
-                            className="relative"
-                        >
-                            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen} modal={false}>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="rounded-full font-bold gap-1 hover:bg-foreground/5 hover:text-foreground">
-                                        {dropdownLabel}
-                                        <ChevronDown className={`size-4 opacity-50 transition-transform duration-300 ${isDropdownOpen ? "rotate-180" : ""}`} />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                    align="start"
-                                    className="rounded-[2.5rem] p-6 min-w-[360px] border-none shadow-2xl bg-white/95 backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300"
-                                    data-no-edit="true"
-                                    onMouseEnter={handleMouseEnter}
-                                    onMouseLeave={handleMouseLeave}
-                                    sideOffset={-2}
-                                >
-                                    <div className="grid grid-cols-2 gap-4 mb-6">
-                                        {navItems.map((item) => (
-                                            <DropdownMenuItem key={item.id} asChild className="p-0 rounded-3xl overflow-hidden cursor-pointer focus:bg-transparent">
-                                                <Link href={item.href} className="relative aspect-square group/item">
-                                                    <img
-                                                        src={item.image}
-                                                        alt={item.name}
-                                                        className="absolute inset-0 object-cover w-full h-full transition-transform duration-700 ease-out group-hover/item:scale-110"
-                                                    />
-                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover/item:opacity-80 transition-opacity" />
-                                                    <span className="absolute bottom-4 left-4 right-4 text-white text-sm font-black leading-tight uppercase tracking-widest drop-shadow-md">
-                                                        {item.name}
-                                                    </span>
-                                                </Link>
-                                            </DropdownMenuItem>
-                                        ))}
-                                    </div>
-                                    <DropdownMenuItem asChild className="rounded-2xl cursor-pointer p-0 focus:bg-transparent">
-                                        <Link
-                                            href="/catalog"
-                                            className="w-full py-4 font-black flex items-center justify-center bg-accent text-accent-foreground hover:scale-[0.98] active:scale-95 hover:brightness-110 transition-all uppercase tracking-widest text-[10px]"
-                                        >
-                                            View Catalog
-                                        </Link>
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                    <div
+                        onMouseEnter={handleMouseEnter}
+                        onMouseLeave={handleMouseLeave}
+                        className="hidden lg:block relative"
+                    >
+                        <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen} modal={false}>
+                            <DropdownMenuTrigger asChild>
+                                <div className="flex items-center gap-1 group cursor-pointer relative">
+                                    <motion.span
+                                        variants={textVariants}
+                                        transition={springTransition}
+                                        className="text-sm font-medium"
+                                    >
+                                        Shop
+                                    </motion.span>
+                                    <motion.div
+                                        variants={textVariants}
+                                        transition={springTransition}
+                                    >
+                                        <ChevronDown className={cn(
+                                            "h-4 w-4 transition-transform duration-300",
+                                            isDropdownOpen ? "rotate-180" : "",
+                                            isScrolled ? "opacity-50" : "opacity-80"
+                                        )} />
+                                    </motion.div>
+                                </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                align="start"
+                                className="rounded-[2.5rem] p-6 min-w-[360px] border-none shadow-2xl bg-white/95 backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300"
+                                data-no-edit="true"
+                                onMouseEnter={handleMouseEnter}
+                                onMouseLeave={handleMouseLeave}
+                                sideOffset={-2}
+                            >
+                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                    {navItems.map((item) => (
+                                        <DropdownMenuItem key={item.id} asChild className="p-0 rounded-3xl overflow-hidden cursor-pointer focus:bg-transparent">
+                                            <Link href={item.href} className="relative aspect-square group/item">
+                                                <img
+                                                    src={item.image}
+                                                    alt={item.name}
+                                                    className="absolute inset-0 object-cover w-full h-full transition-transform duration-700 ease-out group-hover/item:scale-110"
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover/item:opacity-80 transition-opacity" />
+                                                <span className="absolute bottom-4 left-4 right-4 text-white text-sm font-black leading-tight uppercase tracking-widest drop-shadow-md">
+                                                    {item.name}
+                                                </span>
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </div>
+                                <DropdownMenuItem asChild className="rounded-2xl cursor-pointer p-0 focus:bg-transparent">
+                                    <Link
+                                        href="/catalog"
+                                        className="w-full py-4 font-black flex items-center justify-center bg-accent text-accent-foreground hover:scale-[0.98] active:scale-95 hover:brightness-110 transition-all uppercase tracking-widest text-[10px]"
+                                    >
+                                        View Catalog
+                                    </Link>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 sm:gap-4">
+                    <OrderTrackingDialog>
+                        <div className="hidden sm:flex items-center gap-2 cursor-pointer">
+                            <motion.div
+                                variants={textVariants}
+                                transition={springTransition}
+                            >
+                                <Package className="h-4 w-4" />
+                            </motion.div>
+                            <motion.span
+                                variants={textVariants}
+                                transition={springTransition}
+                                className="text-xs font-bold uppercase tracking-wider"
+                            >
+                                TRACK ORDER
+                            </motion.span>
                         </div>
+                    </OrderTrackingDialog>
+
+                    <div className="w-px h-6 bg-gray-200/50 hidden sm:block" />
+
+                    <div className="flex items-center gap-1 sm:gap-2">
+
+                        <div className="relative">
+                            <motion.button
+                                onClick={handleCartClick}
+                                className="p-2 hover:bg-black/5 rounded-full relative"
+                            >
+                                <motion.div
+                                    variants={textVariants}
+                                    transition={springTransition}
+                                >
+                                    <ShoppingCart className="h-5 w-5" />
+                                </motion.div>
+                                <motion.span
+                                    animate={{
+                                        boxShadow: isScrolled ? "0 0 0 2px rgba(255, 255, 255, 1)" : "0 0 0 2px rgba(0, 0, 0, 0.2)"
+                                    }}
+                                    transition={springTransition}
+                                    className="absolute top-1.5 right-1.5 size-2 bg-primary rounded-full"
+                                />
+                            </motion.button>
+                        </div>
+
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                                "lg:hidden rounded-full",
+                                isScrolled ? "hover:bg-foreground/5" : "hover:bg-white/10"
+                            )}
+                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        >
+                            <motion.div
+                                variants={textVariants}
+                                transition={springTransition}
+                            >
+                                {isMobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+                            </motion.div>
+                        </Button>
                     </div>
                 </div>
-
-                {/* Right Side Actions */}
-                <div className="flex items-center gap-2">
-                    <div className="hidden sm:flex items-center gap-2 mr-2 border-r pr-4 border-border/50">
-                        <OrderTrackingDialog data-no-edit="true">
-                            <Button variant="ghost" size="sm" className="rounded-full font-bold gap-2 text-xs uppercase tracking-wider opacity-60 hover:opacity-100 hover:bg-foreground/5 hover:text-foreground">
-                                <Package className="size-4" />
-                                Track Order
-                            </Button>
-                        </OrderTrackingDialog>
-                    </div>
-
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleCartClick}
-                        className="relative rounded-full hover:bg-foreground/5 hover:text-foreground transition-colors"
-                    >
-                        <ShoppingCart className="size-5" />
-                        <span className="absolute top-1 right-1 size-2 bg-primary rounded-full ring-2 ring-white" />
-                    </Button>
-
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="md:hidden rounded-full hover:bg-foreground/5 hover:text-foreground"
-                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                    >
-                        {isMobileMenuOpen ? <X /> : <Menu />}
-                    </Button>
-                </div>
-            </nav>
+            </motion.nav>
 
             {/* Mobile Menu Overlay */}
-            {isMobileMenuOpen && (
-                <div className="fixed inset-0 bg-white z-40 md:hidden animate-in fade-in duration-300">
-                    <div className="pt-24 px-6 space-y-8">
-                        <div>
-                            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/50 mb-6">Explore {dropdownLabel}</h3>
-                            <div className="grid grid-cols-2 gap-4">
-                                {navItems.map((item) => (
-                                    <Link
-                                        key={item.id}
-                                        href={item.href}
-                                        onClick={() => setIsMobileMenuOpen(false)}
-                                        className="relative aspect-square rounded-2xl overflow-hidden"
-                                    >
-                                        <img src={item.image} className="absolute inset-0 object-cover w-full h-full" alt={item.name} />
-                                        <div className="absolute inset-0 bg-black/40" />
-                                        <span className="absolute bottom-3 left-3 text-white font-black text-xs uppercase tracking-wider">
-                                            {item.name}
-                                        </span>
+            <AnimatePresence>
+                {isMobileMenuOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="fixed inset-0 bg-white z-40 lg:hidden"
+                    >
+                        <div className="pt-24 px-6 space-y-8">
+                            <div>
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/50 mb-6">Explore</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {navItems.map((item) => (
+                                        <Link
+                                            key={item.id}
+                                            href={item.href}
+                                            onClick={() => setIsMobileMenuOpen(false)}
+                                            className="relative aspect-square rounded-2xl overflow-hidden"
+                                        >
+                                            <img src={item.image} className="absolute inset-0 object-cover w-full h-full" alt={item.name} />
+                                            <div className="absolute inset-0 bg-black/40" />
+                                            <span className="absolute bottom-3 left-3 text-white font-black text-xs uppercase tracking-wider">
+                                                {item.name}
+                                            </span>
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="pt-8 border-t flex flex-col gap-6">
+                                <Link
+                                    href="/catalog"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className="w-full py-4 bg-accent text-accent-foreground text-center font-black uppercase tracking-[0.2em] text-[10px] rounded-xl hover:brightness-110 transition-all"
+                                >
+                                    View Catalog
+                                </Link>
+                                <div className="flex items-center gap-4">
+                                    <Link href="/track" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider">
+                                        <Package className="h-4 w-4" />
+                                        Track Order
                                     </Link>
-                                ))}
+                                </div>
                             </div>
                         </div>
-                        <div className="pt-8 border-t flex flex-col gap-6">
-                            <Link
-                                href="/catalog"
-                                onClick={() => setIsMobileMenuOpen(false)}
-                                className="w-full py-4 bg-accent text-accent-foreground text-center font-black uppercase tracking-[0.2em] text-[10px] rounded-xl hover:brightness-110 transition-all"
-                            >
-                                View Catalog
-                            </Link>
-                            <div className="flex items-center gap-4">
-                                <OrderTrackingDialog />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </header>
     )
 }

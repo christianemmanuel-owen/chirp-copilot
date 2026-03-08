@@ -55,6 +55,7 @@ export interface StorefrontThemeConfig {
     navbar?: {
       useLogo: boolean
       dropdownMode: "categories" | "brands"
+      transparentTheme?: "light" | "dark" | "glass"
     }
     content?: {
       heroTitle?: string
@@ -263,7 +264,8 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
       newsletterEnabled: false,
       navbar: {
         useLogo: false,
-        dropdownMode: 'categories'
+        dropdownMode: 'categories',
+        transparentTheme: 'dark'
       },
       content: {
         heroTitle: "Exquisite Pieces.",
@@ -323,7 +325,8 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
       newsletterEnabled: exp.newsletterEnabled ?? true,
       navbar: {
         useLogo: exp.navbar?.useLogo ?? false,
-        dropdownMode: exp.navbar?.dropdownMode ?? 'categories'
+        dropdownMode: exp.navbar?.dropdownMode ?? 'categories',
+        transparentTheme: exp.navbar?.transparentTheme ?? 'dark'
       },
       content: {
         heroTitle: "Exquisite Pieces.",
@@ -356,7 +359,8 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
       newsletterEnabled: false,
       navbar: {
         useLogo: false,
-        dropdownMode: 'categories'
+        dropdownMode: 'categories',
+        transparentTheme: 'dark'
       },
       content: {
         heroTitle: "Exquisite Pieces.",

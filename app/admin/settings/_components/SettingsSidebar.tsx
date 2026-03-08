@@ -4,9 +4,6 @@ import { useTransition, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
-    Palette,
-    Image as ImageIcon,
-    Layout,
     CreditCard,
     ShoppingBag,
     Instagram,
@@ -32,8 +29,6 @@ const NAV_GROUPS: NavGroup[] = [
         title: "Storefront",
         sections: [
             { id: "identity", label: "Identity", icon: Fingerprint, keywords: ["logo", "favicon", "brand", "branding"] },
-            { id: "design", label: "Design", icon: Palette, keywords: ["fonts", "colors", "theme", "palette", "typography"] },
-            { id: "layout", label: "Layout", icon: Layout, keywords: ["banners", "tiles", "homepage", "carousel", "navigation"] },
         ]
     },
     {

@@ -9,6 +9,7 @@ import CategoryCarouselSection from "./CategoryCarouselSection"
 import AboutUsSection from "./AboutUsSection"
 import FeaturedProductsSection from "./FeaturedProductsSection"
 import EcommerceFooter from "./EcommerceFooter"
+import ExperimentalNavigation from "./ExperimentalNavigation"
 
 import nextDynamic from "next/dynamic"
 
@@ -71,11 +72,21 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
 
 
     const experimental = settings.experimental || {}
-    const businessName = (settings.theme?.businessName) || (settings.theme_config as any)?.businessName || settings.businessName || "CHIRP"
+    const themeConfig = settings.theme_config || settings.theme || {}
+    const businessName = themeConfig.businessName || settings.businessName || "CHIRP"
 
     return (
         <>
             {isPreview && <PreviewManager />}
+            <ExperimentalNavigation
+                businessName={businessName}
+                faviconUrl={settings?.favicon_url || null}
+                useLogo={experimental.navbar?.useLogo || false}
+                dropdownMode={experimental.navbar?.dropdownMode || "categories"}
+                transparentTheme={experimental.navbar?.transparentTheme || "dark"}
+                navCategories={catalogData.navCategories}
+                navBrands={catalogData.navBrands}
+            />
             {layout.map((section: any) => {
 
                 if (!section.enabled) return null

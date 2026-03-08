@@ -3,11 +3,8 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import AdminPaymentMethodsPanel from "@/components/admin-payment-methods"
-import AdminStorefrontTilesSettings from "@/components/admin-storefront-tiles-settings"
-import AdminBannerCarouselSettings from "@/components/admin-banner-carousel-settings"
 import AdminBrandingSettings from "@/components/admin-branding-settings"
 import AdminCheckoutSettings from "@/components/admin-checkout-settings"
-import AdminThemePaletteSettings from "@/components/admin-theme-palette-settings"
 import InstagramSettingsPanel from "@/components/admin-instagram-settings"
 import AdminExperimentalSettings from "@/components/AdminExperimentalSettings"
 import SettingsSidebar from "./_components/SettingsSidebar"
@@ -87,35 +84,6 @@ export default async function AdminSettingsPage({
             </div>
             <AdminBrandingSettings />
           </>
-        )
-      case "design":
-        return (
-          <>
-            <div className="sett-section-header">
-              <h1 className="sett-section-title">Design</h1>
-              <p className="sett-section-desc">Customize the fonts, colors, and overall appearance of your customer storefront.</p>
-            </div>
-            <AdminThemePaletteSettings />
-          </>
-        )
-      case "layout":
-        return (
-          <div className="space-y-12">
-            <div>
-              <div className="sett-section-header">
-                <h1 className="sett-section-title">Homepage Banners</h1>
-                <p className="sett-section-desc">Update the hero images and marketing banners on your landing page.</p>
-              </div>
-              <AdminBannerCarouselSettings />
-            </div>
-            <div>
-              <div className="sett-section-header">
-                <h1 className="sett-section-title">Storefront Tiles</h1>
-                <p className="sett-section-desc">Configure the promotional tiles and category navigation grids.</p>
-              </div>
-              <AdminStorefrontTilesSettings />
-            </div>
-          </div>
         )
       case "payments":
         return (

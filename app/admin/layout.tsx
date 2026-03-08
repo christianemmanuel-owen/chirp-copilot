@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   LayoutDashboard,
+  Layout,
   Link2,
   LogOut,
   Menu,
@@ -62,6 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
     { href: "/admin/inventory", label: "Inventory", icon: Package },
     { href: "/admin/discounts", label: "Discounts", icon: Percent },
+    { href: "/admin/editor", label: "Page Editor", icon: Layout },
     { href: "/admin/checkout-links", label: "Checkout Links", icon: Link2 },
   ]
 

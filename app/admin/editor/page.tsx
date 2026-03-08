@@ -909,7 +909,7 @@ export default function VisualEditorPage() {
                 <div className={`absolute top-6 right-12 bottom-6 bg-white shadow-2xl rounded-3xl overflow-hidden border-8 border-slate-200/50 transition-all duration-700 group-hover:scale-[1.005] ${isSidebarOpen ? 'left-16' : 'left-16'}`}>
                     <iframe
                         ref={previewRef}
-                        src="/experimental-home?preview=true"
+                        src="/?preview=true"
                         className="w-full h-full border-none"
                         title="Storefront Preview"
                     />
