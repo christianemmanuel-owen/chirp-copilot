@@ -31,7 +31,11 @@ export interface StorefrontThemeColors {
 
 export interface SectionBackground {
   color?: string
+  colorOpacity?: number
   image?: string
+  overlayEnabled?: boolean
+  overlayOpacity?: number
+  overlayBrightness?: number
   gradient?: {
     enabled: boolean
     direction: string
@@ -426,7 +430,15 @@ export const getSectionStyles = (background?: SectionBackground): React.CSSPrope
   const styles: React.CSSProperties = {}
 
   if (background.color) {
-    styles.backgroundColor = background.color
+    let color = background.color
+    const opacity = background.colorOpacity ?? 1
+    if (opacity < 1 && HEX_COLOR_REGEX.test(color)) {
+      const r = parseInt(color.slice(1, 3), 16)
+      const g = parseInt(color.slice(3, 5), 16)
+      const b = parseInt(color.slice(5, 7), 16)
+      color = `rgba(${r}, ${g}, ${b}, ${opacity})`
+    }
+    styles.backgroundColor = color
   }
 
   const layers: string[] = []

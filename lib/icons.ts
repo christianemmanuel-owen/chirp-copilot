@@ -1,0 +1,53 @@
+import {
+    Shield,
+    Zap,
+    Heart,
+    Star,
+    Smile,
+    Rocket,
+    Package,
+    Truck,
+    Award,
+    CheckCircle2,
+    Headphones,
+    Globe,
+    Quote,
+    Clock,
+    Flame,
+    Gem,
+    Gift,
+    Sparkles,
+    Leaf,
+    Sun,
+    Moon,
+    Infinity,
+    Anchor
+} from "lucide-react"
+
+export const AVAILABLE_ICONS = {
+    Shield,
+    Zap,
+    Heart,
+    Star,
+    Smile,
+    Rocket,
+    Package,
+    Truck,
+    Award,
+    CheckCircle2,
+    Headphones,
+    Globe,
+    Quote,
+    Clock,
+    Flame,
+    Gem,
+    Gift,
+    Sparkles,
+    Leaf,
+    Sun,
+    Moon,
+    Infinity,
+    Anchor
+}
+
+export type IconName = keyof typeof AVAILABLE_ICONS

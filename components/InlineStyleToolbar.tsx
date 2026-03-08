@@ -16,7 +16,10 @@ import {
     Ghost,
     Square,
     EyeOff,
-    Search
+    Search,
+    Bold,
+    Italic,
+    Underline
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -316,6 +319,39 @@ export default function InlineStyleToolbar({ target, onUpdate, onClose }: Inline
                     updateStyle('fontSize', `${next}px`)
                 }}>
                     <Plus className="size-3" />
+                </Button>
+            </div>
+
+            <Separator orientation="vertical" className="h-4" />
+
+            {/* Rich Text Formatting */}
+            <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl px-1">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-lg"
+                    onClick={() => document.execCommand('bold', false)}
+                    title="Bold"
+                >
+                    <Bold className="size-3" />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-lg"
+                    onClick={() => document.execCommand('italic', false)}
+                    title="Italic"
+                >
+                    <Italic className="size-3" />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-lg"
+                    onClick={() => document.execCommand('underline', false)}
+                    title="Underline"
+                >
+                    <Underline className="size-3" />
                 </Button>
             </div>
 

@@ -72,7 +72,7 @@ export default function ExperimentalNavigation({
         >
             <nav className={`transition-all duration-500 ease-out flex items-center justify-between px-6 
                 ${isScrolled
-                    ? "w-[95%] max-w-5xl h-16 bg-white/70 backdrop-blur-xl border border-white/20 shadow-2xl rounded-full"
+                    ? "w-[95%] max-w-5xl h-16 bg-background/80 backdrop-blur-xl border border-border/50 shadow-2xl rounded-full"
                     : "w-full h-24 bg-transparent border-b border-transparent"}`}>
 
                 {/* Branding */}
@@ -96,7 +96,7 @@ export default function ExperimentalNavigation({
                         >
                             <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="rounded-full font-bold gap-1 hover:bg-primary/5">
+                                    <Button variant="ghost" className="rounded-full font-bold gap-1 hover:bg-foreground/5 hover:text-foreground">
                                         {dropdownLabel}
                                         <ChevronDown className={`size-4 opacity-50 transition-transform duration-300 ${isDropdownOpen ? "rotate-180" : ""}`} />
                                     </Button>
@@ -141,7 +141,7 @@ export default function ExperimentalNavigation({
                 <div className="flex items-center gap-2">
                     <div className="hidden sm:flex items-center gap-2 mr-2 border-r pr-4 border-border/50">
                         <OrderTrackingDialog data-no-edit="true">
-                            <Button variant="ghost" size="sm" className="rounded-full font-bold gap-2 text-xs uppercase tracking-wider opacity-60 hover:opacity-100">
+                            <Button variant="ghost" size="sm" className="rounded-full font-bold gap-2 text-xs uppercase tracking-wider opacity-60 hover:opacity-100 hover:bg-foreground/5 hover:text-foreground">
                                 <Package className="size-4" />
                                 Track Order
                             </Button>
@@ -152,7 +152,7 @@ export default function ExperimentalNavigation({
                         variant="ghost"
                         size="icon"
                         onClick={handleCartClick}
-                        className="relative rounded-full hover:bg-primary/10 transition-colors"
+                        className="relative rounded-full hover:bg-foreground/5 hover:text-foreground transition-colors"
                     >
                         <ShoppingCart className="size-5" />
                         <span className="absolute top-1 right-1 size-2 bg-primary rounded-full ring-2 ring-white" />
@@ -161,7 +161,7 @@ export default function ExperimentalNavigation({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="md:hidden rounded-full"
+                        className="md:hidden rounded-full hover:bg-foreground/5 hover:text-foreground"
                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                     >
                         {isMobileMenuOpen ? <X /> : <Menu />}

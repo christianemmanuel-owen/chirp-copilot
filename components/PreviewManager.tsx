@@ -6,12 +6,13 @@ import InlineStyleToolbar from "./InlineStyleToolbar"
 export default function PreviewManager() {
     const [selectedElement, setSelectedElement] = useState<HTMLElement | null>(null)
     const [hoveredElement, setHoveredElement] = useState<HTMLElement | null>(null)
+    const [selectedCatalogElement, setSelectedCatalogElement] = useState<HTMLElement | null>(null)
 
     useEffect(() => {
         const handleMouseOver = (e: MouseEvent) => {
             let target = e.target as HTMLElement
             if (target?.closest) {
-                const closestLinkBtn = target.closest('a, button, [data-element-key]') as HTMLElement
+                const closestLinkBtn = target.closest('a, button, [data-element-key], [data-selection-type]') as HTMLElement
                 if (closestLinkBtn) target = closestLinkBtn
             }
             const path = e.composedPath() as HTMLElement[]
@@ -32,10 +33,11 @@ export default function PreviewManager() {
             const isEditableDiv = target.tagName === 'DIV' && target.hasAttribute('data-element-key')
             const hasText = target.innerText && target.innerText.trim().length > 0
             const hasKey = target.hasAttribute('data-element-key')
+            const isCatalogSelector = target.hasAttribute('data-selection-type')
 
-            if ((isEditableTag || isEditableDiv) && (hasText || hasKey)) {
+            if ((isEditableTag || isEditableDiv) && (hasText || hasKey || isCatalogSelector)) {
                 setHoveredElement(target)
-                if (target !== selectedElement) {
+                if (target !== selectedElement && target !== selectedCatalogElement) {
                     target.style.outline = '2px dashed #6355ff'
                     target.style.outlineOffset = '4px'
                     target.style.cursor = 'pointer'
@@ -48,11 +50,11 @@ export default function PreviewManager() {
         const handleMouseOut = (e: MouseEvent) => {
             let target = e.target as HTMLElement
             if (target?.closest) {
-                const closestLinkBtn = target.closest('a, button, [data-element-key]') as HTMLElement
+                const closestLinkBtn = target.closest('a, button, [data-element-key], [data-selection-type]') as HTMLElement
                 if (closestLinkBtn) target = closestLinkBtn
             }
 
-            if (target !== selectedElement) {
+            if (target !== selectedElement && target !== selectedCatalogElement) {
                 target.style.outline = ''
                 target.style.outlineOffset = ''
             }
@@ -75,15 +77,13 @@ export default function PreviewManager() {
             if (selectedElement && !selectedElement.contains(target) && !isEditingUI) {
                 // Save and close
                 stopEditing()
-                return
             }
-
         }
 
         const handleClick = (e: MouseEvent) => {
             let target = e.target as HTMLElement
             if (target?.closest) {
-                const closestLinkBtn = target.closest('a, button, [data-element-key]') as HTMLElement
+                const closestLinkBtn = target.closest('a, button, [data-element-key], [data-selection-type]') as HTMLElement
                 if (closestLinkBtn) target = closestLinkBtn
             }
             const path = e.composedPath() as HTMLElement[]
@@ -99,6 +99,48 @@ export default function PreviewManager() {
                 e.preventDefault()
                 e.stopImmediatePropagation()
                 e.stopPropagation()
+            }
+
+            // Check for inline catalog selection first
+            const selectionElement = path.find(el => el.hasAttribute && el.hasAttribute('data-selection-type'))
+            if (selectionElement) {
+                e.preventDefault()
+                e.stopPropagation()
+
+                const section = selectionElement.closest('[data-section-id]')
+                const sectionId = section?.getAttribute('data-section-id')
+                const selectionType = selectionElement.getAttribute('data-selection-type')
+                const elementKey = selectionElement.getAttribute('data-element-key')
+
+                if (sectionId && selectionType) {
+                    if (selectedCatalogElement && selectedCatalogElement !== selectionElement) {
+                        selectedCatalogElement.style.outline = ''
+                        selectedCatalogElement.style.outlineOffset = ''
+                    }
+                    if (selectedElement) stopEditing()
+
+                    setSelectedCatalogElement(selectionElement)
+                    selectionElement.style.outline = '2px solid #6355ff'
+                    selectionElement.style.outlineOffset = '4px'
+
+                    window.parent.postMessage({
+                        type: 'CATALOG_SELECTION_REQUEST',
+                        sectionId,
+                        selectionType,
+                        elementKey,
+                        clientX: e.clientX,
+                        clientY: e.clientY
+                    }, '*')
+                }
+                return
+            }
+
+            // If we get here, the user clicked something *other* than a selection element
+            if (selectedCatalogElement) {
+                selectedCatalogElement.style.outline = ''
+                selectedCatalogElement.style.outlineOffset = ''
+                setSelectedCatalogElement(null)
+                window.parent.postMessage({ type: 'CATALOG_SELECTION_CLOSED' }, '*')
             }
 
             // Skip selection if inside no-edit zone
@@ -158,8 +200,11 @@ export default function PreviewManager() {
                 e.preventDefault()
                 stopEditing()
             }
-            if (e.key === 'Escape' && selectedElement) {
-                stopEditing()
+            if (e.key === 'Escape') {
+                if (selectedElement) stopEditing()
+                if (selectedCatalogElement) {
+                    window.parent.postMessage({ type: 'CATALOG_SELECTION_CLOSED' }, '*')
+                }
             }
         }
 
@@ -173,7 +218,7 @@ export default function PreviewManager() {
                     type: 'CONTENT_UPDATE',
                     sectionId,
                     elementKey,
-                    content: el.innerText.trim()
+                    content: el.innerHTML
                 }, '*')
             }
         }
@@ -191,6 +236,25 @@ export default function PreviewManager() {
             }
         }
 
+        // --- CATALOG SELECTION TRACKING ---
+        const handleScrollOrResize = () => {
+            if (selectedCatalogElement) {
+                const rect = selectedCatalogElement.getBoundingClientRect()
+                window.parent.postMessage({
+                    type: 'CATALOG_SELECTION_POSITION_UPDATE',
+                    rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+                }, '*')
+            }
+        }
+
+        if (selectedCatalogElement) {
+            window.addEventListener('scroll', handleScrollOrResize, true)
+            window.addEventListener('resize', handleScrollOrResize, true)
+            // Send initial update instantly
+            handleScrollOrResize()
+        }
+        // ----------------------------------
+
         document.addEventListener('mouseover', handleMouseOver)
         document.addEventListener('mouseout', handleMouseOut)
         window.addEventListener('mousedown', handleMouseDown, true)
@@ -205,11 +269,29 @@ export default function PreviewManager() {
             window.removeEventListener('click', handleClick, true)
             window.removeEventListener('submit', handleFormSubmit, true)
             document.removeEventListener('keydown', handleKeyDown)
+            if (selectedCatalogElement) {
+                window.removeEventListener('scroll', handleScrollOrResize, true)
+                window.removeEventListener('resize', handleScrollOrResize, true)
+            }
         }
 
 
 
-    }, [selectedElement])
+    }, [selectedElement, selectedCatalogElement])
+
+    useEffect(() => {
+        const handleMessage = (e: MessageEvent) => {
+            if (e.data.type === 'CATALOG_SELECTION_CLOSED') {
+                if (selectedCatalogElement) {
+                    selectedCatalogElement.style.outline = ''
+                    selectedCatalogElement.style.outlineOffset = ''
+                    setSelectedCatalogElement(null)
+                }
+            }
+        }
+        window.addEventListener('message', handleMessage)
+        return () => window.removeEventListener('message', handleMessage)
+    }, [selectedCatalogElement])
 
     const handleStyleUpdate = (styles: any) => {
         if (!selectedElement) return

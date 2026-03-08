@@ -18,8 +18,7 @@ import {
     ArrowUpLeft,
     Upload,
     Loader2,
-    X,
-    Check
+    X
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -36,7 +35,8 @@ import { Textarea } from "@/components/ui/textarea"
 interface SectionSettingsProps {
     sectionType: string
     background?: SectionBackground
-    onChange: (background: SectionBackground) => void
+    section?: any
+    onChange: (background: SectionBackground, sectionUpdates?: any) => void
     onDelete?: () => void
 }
 
@@ -56,6 +56,7 @@ const DIRECTIONS = [
 export default function SectionSettings({
     sectionType,
     background,
+    section,
     onChange,
     onDelete
 }: SectionSettingsProps) {
@@ -114,6 +115,8 @@ export default function SectionSettings({
 
     return (
         <div className="space-y-8 py-2 max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-muted-foreground/20">
+
+
             {/* Color Layer */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -147,16 +150,33 @@ export default function SectionSettings({
                             {!background?.color && <Plus className="size-4 mix-blend-difference text-white" />}
                         </div>
                     </div>
-                    <Input
-                        value={background?.color || ""}
-                        placeholder="#ffffff"
-                        onChange={(e) => {
-                            let val = e.target.value
-                            if (val && !val.startsWith("#")) val = `#${val}`
-                            if (HEX_PATTERN.test(val) || val === "") handleUpdate({ color: val || undefined })
-                        }}
-                        className="h-12 rounded-xl border-border bg-muted/10 font-mono text-sm font-bold uppercase tracking-widest"
-                    />
+                    <div className="flex-1 space-y-3">
+                        <Input
+                            value={background?.color || ""}
+                            placeholder="#ffffff"
+                            onChange={(e) => {
+                                let val = e.target.value
+                                if (val && !val.startsWith("#")) val = `#${val}`
+                                if (HEX_PATTERN.test(val) || val === "") handleUpdate({ color: val || undefined })
+                            }}
+                            className="h-10 rounded-xl border-border bg-muted/10 font-mono text-xs font-bold uppercase tracking-widest"
+                        />
+                        {background?.color && (
+                            <div className="space-y-1.5 px-1">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-[9px] font-bold uppercase text-muted-foreground">Color Opacity</Label>
+                                    <span className="text-[9px] font-bold text-muted-foreground">{Math.round((background.colorOpacity ?? 1) * 100)}%</span>
+                                </div>
+                                <Slider
+                                    value={[(background.colorOpacity ?? 1) * 100]}
+                                    max={100}
+                                    step={1}
+                                    onValueChange={([val]) => handleUpdate({ colorOpacity: val / 100 })}
+                                    className="py-1"
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -205,13 +225,58 @@ export default function SectionSettings({
                             onChange={handleFileUpload}
                         />
                     </div>
+
                     {background?.image && (
-                        <div className="relative aspect-video rounded-xl overflow-hidden border border-border group">
-                            <img src={background.image} className="w-full h-full object-cover" alt="Background" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Button variant="destructive" size="icon" className="size-8 rounded-lg" onClick={() => handleUpdate({ image: undefined })}>
-                                    <Trash2 className="size-4" />
-                                </Button>
+                        <div className="space-y-6">
+                            <div className="relative aspect-video rounded-xl overflow-hidden border border-border group shadow-sm">
+                                <img src={background.image} className="w-full h-full object-cover" alt="Background" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Button variant="destructive" size="icon" className="size-8 rounded-lg" onClick={() => handleUpdate({ image: undefined })}>
+                                        <Trash2 className="size-4" />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 border border-border/50 rounded-2xl p-4 bg-muted/5">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Background Overlay</Label>
+                                        <p className="text-[9px] text-muted-foreground font-medium italic">Apply a muting effect for readability</p>
+                                    </div>
+                                    <Switch
+                                        checked={background.overlayEnabled ?? false}
+                                        onCheckedChange={(checked) => handleUpdate({ overlayEnabled: checked })}
+                                    />
+                                </div>
+
+                                {background.overlayEnabled && (
+                                    <div className="space-y-4 pt-2 border-t border-border/30 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <Label className="text-[9px] font-bold uppercase text-muted-foreground tracking-wider">Overlay Intensity</Label>
+                                                <span className="text-[9px] font-bold text-muted-foreground">{Math.round((background.overlayOpacity ?? 1) * 100)}%</span>
+                                            </div>
+                                            <Slider
+                                                value={[(background.overlayOpacity ?? 1) * 100]}
+                                                max={100}
+                                                step={1}
+                                                onValueChange={([val]) => handleUpdate({ overlayOpacity: val / 100 })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <Label className="text-[9px] font-bold uppercase text-muted-foreground tracking-wider">Overlay Brightness</Label>
+                                                <span className="text-[9px] font-bold text-muted-foreground">{Math.round((background.overlayBrightness ?? 1) * 100)}%</span>
+                                            </div>
+                                            <Slider
+                                                value={[(background.overlayBrightness ?? 1) * 100]}
+                                                max={200}
+                                                step={1}
+                                                onValueChange={([val]) => handleUpdate({ overlayBrightness: val / 100 })}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

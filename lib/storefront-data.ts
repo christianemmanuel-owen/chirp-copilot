@@ -65,6 +65,7 @@ export interface HeroProductHighlight {
   productId?: number
   ctaLabel?: string
   discountCampaignId?: string
+  variantLabel?: string | null
 }
 
 export interface CatalogVariant {

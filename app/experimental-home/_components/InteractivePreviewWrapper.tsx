@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { themeConfigToCssVariables, buildThemeConfig } from "@/lib/storefront-theme"
+import type { CatalogVariant, CollectionTile } from "@/lib/storefront-data"
 
 import HeroSection from "./HeroSection"
 import CategoryCarouselSection from "./CategoryCarouselSection"
@@ -80,13 +81,23 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                 if (!section.enabled) return null
 
                 switch (section.type) {
-                    case "hero":
+                    case "hero": {
+                        const heroVariant = catalogData.variants.find((v: CatalogVariant) => v.id === section.metadata?.selectedProductIds?.[0])
+                        const heroFeatured = heroVariant ? [{
+                            id: heroVariant.id,
+                            title: heroVariant.productName,
+                            variantLabel: heroVariant.variantLabel,
+                            subtitle: heroVariant.description || "",
+                            image: heroVariant.image,
+                            href: heroVariant.detailPath,
+                            productId: heroVariant.productId
+                        }] : catalogData.hero.featured
                         return (
                             <HeroSection
                                 key={section.id}
                                 sectionId={section.id}
                                 categories={catalogData.navCategories}
-                                featuredItems={catalogData.hero.featured}
+                                featuredItems={heroFeatured}
                                 title={experimental.content?.heroTitle}
                                 subtitle={experimental.content?.heroSubtitle}
                                 titleHighlight={experimental.content?.heroTitleHighlight}
@@ -95,20 +106,27 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                                 styles={section.styles}
                                 background={section.background}
                                 hiddenFields={section.hiddenFields}
+                                variant={section.metadata?.variant}
                             />
                         )
+                    }
 
-                    case "categories":
+                    case "categories": {
+                        const selectedTiles = section.metadata?.selectedCategoryIds?.length > 0
+                            ? catalogData.categoryTiles.filter((c: CollectionTile) => section.metadata.selectedCategoryIds.includes(c.id))
+                            : catalogData.categoryTiles
                         return (
                             <CategoryCarouselSection
                                 key={section.id}
                                 sectionId={section.id}
-                                tiles={catalogData.categoryTiles}
+                                tiles={selectedTiles}
                                 styles={section.styles}
                                 background={section.background}
                                 hiddenFields={section.hiddenFields}
+                                variant={section.metadata?.variant}
                             />
                         )
+                    }
                     case "about":
                         return (
                             <AboutUsSection
@@ -119,22 +137,28 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                                 styles={section.styles}
                                 background={section.background}
                                 hiddenFields={section.hiddenFields}
+                                variant={section.metadata?.variant}
                             />
                         )
-                    case "featured":
+                    case "featured": {
+                        const selectedVariants = section.metadata?.selectedProductIds?.length > 0
+                            ? catalogData.variants.filter((v: CatalogVariant) => section.metadata.selectedProductIds.includes(v.id))
+                            : catalogData.variants
                         return (
                             <FeaturedProductsSection
                                 key={section.id}
                                 sectionId={section.id}
-                                initialProducts={catalogData.variants}
+                                initialProducts={selectedVariants}
                                 title={experimental.content?.featuredTitle}
                                 subtitle={experimental.content?.featuredSubtitle}
                                 featuredCTALink={experimental.content?.featuredCTALink}
                                 styles={section.styles}
                                 background={section.background}
                                 hiddenFields={section.hiddenFields}
+                                variant={section.metadata?.variant}
                             />
                         )
+                    }
                     case "footer":
                         return (
                             <EcommerceFooter
@@ -146,6 +170,7 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                                 styles={section.styles}
                                 background={section.background}
                                 hiddenFields={section.hiddenFields}
+                                variant={section.metadata?.variant}
                             />
                         )
 

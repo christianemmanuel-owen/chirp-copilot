@@ -20,9 +20,10 @@ interface AddToCartPayload {
 interface FeaturedProductCardProps {
     variant: CatalogVariant
     onAddToCart: (item: AddToCartPayload) => void
+    isSpotlight?: boolean
 }
 
-export default function FeaturedProductCard({ variant, onAddToCart }: FeaturedProductCardProps) {
+export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight }: FeaturedProductCardProps) {
     const [hovered, setHovered] = useState(false)
     const [quantity, setQuantity] = useState(1)
     const isPreorder = Boolean(variant.isPreorder)
@@ -81,7 +82,10 @@ export default function FeaturedProductCard({ variant, onAddToCart }: FeaturedPr
 
     return (
         <article
-            className="group relative aspect-[3/4] w-full rounded-[2.5rem] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.2)] transition-all duration-700 ease-out border border-white/10"
+            className={cn(
+                "group relative w-full rounded-[2.5rem] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.2)] transition-all duration-700 ease-out border border-white/10",
+                isSpotlight ? "aspect-auto h-full min-h-[400px]" : "aspect-[3/4]"
+            )}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >
@@ -101,33 +105,48 @@ export default function FeaturedProductCard({ variant, onAddToCart }: FeaturedPr
 
             {/* Content Container */}
             <div className="relative z-10 h-full flex flex-col justify-end p-8 text-white">
-                <Link href={variant.detailPath} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 mb-4 text-left">
+                <Link href={variant.detailPath} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 mb-4 text-left group-hover:scale-[1.02] transition-transform duration-500">
                     {/* Badges */}
-                    <div className="absolute top-6 left-6 flex flex-col gap-2 pointer-events-none">
+                    <div className="absolute top-6 left-6 lg:top-10 lg:left-10 flex flex-col gap-2 pointer-events-none">
+                        {isSpotlight && (
+                            <span className="bg-primary/20 backdrop-blur-xl text-primary border border-primary/20 px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] rounded-full mb-2">
+                                Seasonal Highlight
+                            </span>
+                        )}
                         {isOutOfStock && (
-                            <span className="bg-white/20 backdrop-blur-md text-white border border-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full">
+                            <span className="bg-white/20 backdrop-blur-md text-white border border-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full w-fit">
                                 Sold Out
                             </span>
                         )}
                         {discountLabel && (
-                            <span className="bg-primary/90 text-primary-foreground backdrop-blur-md px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full">
+                            <span className="bg-primary/90 text-primary-foreground backdrop-blur-md px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full w-fit">
                                 {discountLabel}
                             </span>
                         )}
                     </div>
 
-                    <h3 className="text-2xl font-black tracking-tight leading-tight mb-2 drop-shadow-md">
-                        {variant.displayName}
-                    </h3>
+                    <div className="flex flex-col gap-2 mb-2 lg:mb-4">
+                        {variant.variantLabel && variant.variantLabel !== "Default" && (
+                            <span className="self-start bg-white/10 backdrop-blur-md text-white/80 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-white/20">
+                                {variant.variantLabel}
+                            </span>
+                        )}
+                        <h3 className={cn(
+                            "font-black tracking-tight leading-[0.9] drop-shadow-md uppercase",
+                            isSpotlight ? "text-4xl md:text-6xl lg:text-7xl" : "text-2xl"
+                        )}>
+                            {variant.productName}
+                        </h3>
+                    </div>
 
                     <div className="flex items-center gap-3 mb-2">
                         {discountedPriceLabel ? (
                             <div className="flex items-center gap-2">
-                                <span className="text-xl font-black text-white">{discountedPriceLabel}</span>
+                                <span className={cn("font-black text-white", isSpotlight ? "text-3xl" : "text-xl")}>{discountedPriceLabel}</span>
                                 <span className="text-sm text-white/50 line-through font-semibold">{basePriceLabel}</span>
                             </div>
                         ) : (
-                            <span className="text-xl font-black text-white">{basePriceLabel}</span>
+                            <span className={cn("font-black text-white", isSpotlight ? "text-3xl" : "text-xl")}>{basePriceLabel}</span>
                         )}
                     </div>
                 </Link>

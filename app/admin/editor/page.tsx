@@ -42,7 +42,11 @@ import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
 import GlobalStylesEditor from "@/components/editor/GlobalStylesEditor"
 import SectionSettings from "@/components/editor/SectionSettings"
+import { SectionLibraryDialog } from "@/components/editor/SectionLibraryDialog"
 import { DEFAULT_THEME_COLORS, type StorefrontThemeConfig } from "@/lib/storefront-theme"
+import { InlineCatalogSelector, type SelectionRequest } from "@/components/editor/InlineCatalogSelector"
+import { InlineIconPicker } from "@/components/editor/InlineIconPicker"
+import type { IconName } from "@/lib/icons"
 
 
 
@@ -103,6 +107,9 @@ export default function VisualEditorPage() {
     const [activeTab, setActiveTab] = useState("sections")
     const [isSidebarOpen, setIsSidebarOpen] = useState(true)
     const [expandedSections, setExpandedSections] = useState<string[]>([])
+    const [catalogSelectionRequest, setCatalogSelectionRequest] = useState<SelectionRequest | null>(null)
+    const [isSectionLibraryOpen, setIsSectionLibraryOpen] = useState(false)
+    const [iconSelectionRequest, setIconSelectionRequest] = useState<any>(null)
 
     const toggleSectionExpansion = (id: string) => {
         setExpandedSections(prev =>
@@ -307,6 +314,55 @@ export default function VisualEditorPage() {
                     }
                 })
             }
+
+            if (type === 'CATALOG_SELECTION_REQUEST') {
+                const { sectionId, selectionType, clientX, clientY, elementKey } = e.data
+                const section = config.experimental.layout.find((s: any) => s.id === sectionId)
+
+                if (selectionType === "icon") {
+                    if (previewRef.current) {
+                        const rect = previewRef.current.getBoundingClientRect()
+                        setIconSelectionRequest({
+                            sectionId,
+                            iconKey: elementKey,
+                            clientX: clientX + rect.left,
+                            clientY: clientY + rect.top,
+                            currentIcon: section?.styles?.[elementKey]?.iconName
+                        })
+                    }
+                    return
+                }
+
+                const selectedIds = selectionType === "categories"
+                    ? section?.metadata?.selectedCategoryIds || []
+                    : section?.metadata?.selectedProductIds || []
+
+                if (previewRef.current) {
+                    const rect = previewRef.current.getBoundingClientRect()
+                    setCatalogSelectionRequest({
+                        sectionId,
+                        selectionType,
+                        clientX: clientX + rect.left,
+                        clientY: clientY + rect.top,
+                        selectedIds
+                    })
+                }
+            }
+
+            if (type === 'CATALOG_SELECTION_POSITION_UPDATE') {
+                if (previewRef.current) {
+                    const iframeRect = previewRef.current.getBoundingClientRect()
+                    setCatalogSelectionRequest((prev: any) => prev ? ({
+                        ...prev,
+                        clientX: e.data.rect.left + iframeRect.left,
+                        clientY: e.data.rect.top + iframeRect.top
+                    }) : null)
+                }
+            }
+
+            if (type === 'CATALOG_SELECTION_CLOSED') {
+                setCatalogSelectionRequest(null)
+            }
         }
 
         window.addEventListener('message', handleMessage)
@@ -367,6 +423,98 @@ export default function VisualEditorPage() {
         })
     }
 
+    const handleAddSection = (type: string, variant: string) => {
+        const id = `${type}-${Date.now()}`
+        const newSection = {
+            id,
+            type,
+            enabled: true,
+            styles: {},
+            metadata: { variant },
+            background: (type === "hero" && variant === "v3")
+                ? { overlayEnabled: true }
+                : (type === "about" && variant === "v1")
+                    ? {
+                        image: "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?q=80&w=2070&auto=format&fit=crop",
+                        overlayEnabled: true,
+                        overlayOpacity: 0.5,
+                        overlayBrightness: 0.5
+                    }
+                    : (type === "about" && variant === "v3")
+                        ? {
+                            image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=2070&auto=format&fit=crop"
+                        }
+                        : (type === "about" && variant === "v4")
+                            ? { color: "#f8fafc" }
+                            : (type === "about" && variant === "v5")
+                                ? { color: "#ffffff" }
+                                : (type === "footer" && variant === "v2")
+                                    ? { color: "#000000" }
+                                    : undefined
+        }
+
+        updateConfig((prev: any) => ({
+            ...prev,
+            experimental: {
+                ...prev.experimental,
+                layout: [...prev.experimental.layout, newSection]
+            }
+        }))
+
+        setExpandedSections(prev => [...prev, id])
+
+        toast({
+            title: "Section Added",
+            description: `A new ${type} variation has been added to your layout.`
+        })
+    }
+
+    const handleRemoveSection = (id: string) => {
+        if (!confirm("Are you sure you want to remove this section? This cannot be undone easily (though you can use 'Undo').")) return
+
+        const section = config.experimental.layout.find((s: any) => s.id === id)
+        const newLayout = config.experimental.layout.filter((s: any) => s.id !== id)
+
+        updateConfig({
+            ...config,
+            experimental: {
+                ...config.experimental,
+                layout: newLayout
+            }
+        })
+
+        setExpandedSections(prev => prev.filter(s => s !== id))
+
+        toast({
+            title: "Section Removed",
+            description: `The ${section?.type} section has been removed from your layout.`
+        })
+    }
+
+    const handleIconSelect = (sectionId: string, iconKey: string, iconName: IconName) => {
+        updateConfig((prev: any) => {
+            const newLayout = prev.experimental.layout.map((item: any) => {
+                if (item.id === sectionId) {
+                    return {
+                        ...item,
+                        styles: {
+                            ...item.styles,
+                            [iconKey]: {
+                                ...(item.styles?.[iconKey] || {}),
+                                iconName
+                            }
+                        }
+                    }
+                }
+                return item
+            })
+            return {
+                ...prev,
+                experimental: { ...prev.experimental, layout: newLayout }
+            }
+        })
+    }
+
     if (isLoading) {
         return (
             <div className="flex h-screen w-full items-center justify-center">
@@ -376,7 +524,41 @@ export default function VisualEditorPage() {
     }
 
     return (
-        <div className="flex h-screen w-screen overflow-hidden bg-white">
+        <div className="flex h-screen w-screen overflow-hidden bg-white relative">
+            {catalogSelectionRequest && (
+                <InlineCatalogSelector
+                    request={catalogSelectionRequest}
+                    onClose={() => {
+                        setCatalogSelectionRequest(null)
+                        if (previewRef.current?.contentWindow) {
+                            previewRef.current.contentWindow.postMessage({ type: 'CATALOG_SELECTION_CLOSED' }, '*')
+                        }
+                    }}
+                    onSelect={(sectionId, selectedIds) => {
+                        const newLayout = config.experimental.layout.map((item: any) => {
+                            if (item.id === sectionId) {
+                                const isCat = catalogSelectionRequest.selectionType === "categories"
+                                return {
+                                    ...item,
+                                    metadata: {
+                                        ...item.metadata,
+                                        [isCat ? "selectedCategoryIds" : "selectedProductIds"]: selectedIds
+                                    }
+                                }
+                            }
+                            return item
+                        })
+                        updateConfig({ ...config, experimental: { ...config.experimental, layout: newLayout } })
+                    }}
+                />
+            )}
+
+            <SectionLibraryDialog
+                open={isSectionLibraryOpen}
+                onOpenChange={setIsSectionLibraryOpen}
+                onAddSection={handleAddSection}
+            />
+
             {/* Sidebar Editor */}
             <div className={`w-[400px] flex-shrink-0 border-r border-border flex flex-col h-full bg-muted/5 shadow-2xl z-20 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'ml-0' : '-ml-[400px]'}`}>
                 <div className="p-6 border-b border-border flex items-center justify-between bg-white/50 backdrop-blur-md sticky top-0 z-10">
@@ -423,7 +605,12 @@ export default function VisualEditorPage() {
                                 <div className="space-y-4 pb-20">
                                     <div className="flex items-center justify-between">
                                         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground/50">Active Layout</h2>
-                                        <Button variant="ghost" size="sm" className="h-8 rounded-lg text-xs font-bold text-primary">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 rounded-lg text-xs font-bold text-primary"
+                                            onClick={() => setIsSectionLibraryOpen(true)}
+                                        >
                                             <Plus className="size-3 mr-1" /> Add Section
                                         </Button>
                                     </div>
@@ -493,10 +680,11 @@ export default function VisualEditorPage() {
                                                                                                     <SectionSettings
                                                                                                         sectionType={section.type}
                                                                                                         background={section.background}
-                                                                                                        onChange={(background) => {
+                                                                                                        section={section}
+                                                                                                        onChange={(background, sectionUpdates) => {
                                                                                                             const newLayout = config.experimental.layout.map((item: any) => {
                                                                                                                 if (item.id === section.id) {
-                                                                                                                    return { ...item, background }
+                                                                                                                    return { ...item, background, ...sectionUpdates }
                                                                                                                 }
                                                                                                                 return item
                                                                                                             })
@@ -535,6 +723,16 @@ export default function VisualEditorPage() {
                                                                                             }}
                                                                                         >
                                                                                             {section.enabled ? <Eye className="size-4 opacity-40 hover:opacity-100" /> : <EyeOffIcon className="size-4 text-primary" />}
+                                                                                        </Button>
+
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="icon"
+                                                                                            className="size-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                                                            title="Delete Section"
+                                                                                            onClick={() => handleRemoveSection(section.id)}
+                                                                                        >
+                                                                                            <Trash2 className="size-4 opacity-40 group-hover:opacity-100" />
                                                                                         </Button>
                                                                                     </div>
                                                                                 </div>
@@ -694,6 +892,13 @@ export default function VisualEditorPage() {
                     />
                 </div>
             </div>
+            {iconSelectionRequest && (
+                <InlineIconPicker
+                    request={iconSelectionRequest}
+                    onClose={() => setIconSelectionRequest(null)}
+                    onSelect={handleIconSelect}
+                />
+            )}
         </div>
     )
 }
