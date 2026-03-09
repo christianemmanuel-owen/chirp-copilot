@@ -101,22 +101,25 @@ export default function ExperimentalNavigation({
             height: "96px",
             borderRadius: "0px",
             y: 0,
-            backgroundColor: "rgba(255, 255, 255, 0)",
-            backdropFilter: "blur(0px)",
-            borderColor: "rgba(255, 255, 255, 0)",
-            boxShadow: "0 0 0 rgba(0,0,0,0)",
+            backgroundColor: "rgba(255, 255, 255, 0.12)",
+            backdropFilter: "blur(50px) saturate(190%) brightness(0.85) contrast(1.02)",
+            borderColor: "rgba(255, 255, 255, 0.5)",
+            borderBottomWidth: "1.2px",
+            borderTopWidth: "1.2px",
+            boxShadow: "inset 0 0 0 1px rgba(255, 255, 255, 0.1)",
             paddingLeft: "24px",
             paddingRight: "24px",
         },
         scrolled: {
             width: pillWidth,
             height: "64px",
-            borderRadius: "9999px",
+            borderRadius: "32px",
             y: 16,
-            backgroundColor: "rgba(255, 255, 255, 0.8)",
-            backdropFilter: "blur(20px)",
-            borderColor: "rgba(0, 0, 0, 0.05)",
-            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+            backgroundColor: "rgba(255, 255, 255, 0.12)",
+            backdropFilter: "blur(50px) saturate(190%) brightness(0.85) contrast(1.02)",
+            borderColor: "rgba(255, 255, 255, 0.6)",
+            borderWidth: "1.2px",
+            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.1)",
             paddingLeft: "24px",
             paddingRight: "24px",
         }
@@ -125,18 +128,16 @@ export default function ExperimentalNavigation({
     // Text color variants based on transparentTheme
     const textVariants = {
         top: {
-            color: isDark ? "rgba(255, 255, 255, 1)" : isLight ? "rgba(0, 0, 0, 0.9)" : "rgba(107, 114, 128, 1)",
-            textShadow: isDark ? "0 1px 2px rgba(0,0,0,0.5)" : isLight ? "0 1px 1px rgba(255,255,255,0.5)" : "none"
+            color: "rgba(255, 255, 255, 0.98)",
+            textShadow: "0 2px 10px rgba(0,0,0,0.35)"
         },
         scrolled: {
-            color: "rgba(0, 0, 0, 0.9)",
-            textShadow: "none"
+            color: "rgba(255, 255, 255, 0.98)",
+            textShadow: "0 2px 8px rgba(0,0,0,0.3)"
         }
     }
 
-    const headerGradient = !isScrolled && isDark
-        ? "bg-gradient-to-b from-black/50 via-black/10 to-transparent"
-        : ""
+    const headerGradient = ""
 
     return (
         <header
@@ -267,7 +268,7 @@ export default function ExperimentalNavigation({
                                 </motion.div>
                                 <motion.span
                                     animate={{
-                                        boxShadow: isScrolled ? "0 0 0 2px rgba(255, 255, 255, 1)" : "0 0 0 2px rgba(0, 0, 0, 0.2)"
+                                        boxShadow: "0 0 0 2px rgba(255, 255, 255, 1)"
                                     }}
                                     transition={springTransition}
                                     className="absolute top-1.5 right-1.5 size-2 bg-primary rounded-full"
