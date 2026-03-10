@@ -323,6 +323,30 @@ const VARIATIONS: Record<string, SectionVariation[]> = {
                     <div className="w-24 h-1.5 bg-foreground/5 rounded-full" />
                 </div>
             )
+        },
+        {
+            id: "v3",
+            type: "footer",
+            name: "Modern Split",
+            description: "High-contrast design with massive brand typography.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl flex border border-border/50 overflow-hidden relative">
+                    <div className="w-1/2 p-4 flex flex-col justify-center gap-2">
+                        <div className="w-full h-8 bg-foreground/20 rounded-full" />
+                        <div className="w-2/3 h-3 bg-foreground/10 rounded-full" />
+                    </div>
+                    <div className="w-1/2 p-4 grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                            <div className="w-1/2 h-1.5 bg-foreground/20 rounded-full" />
+                            <div className="w-full h-1 bg-foreground/5 rounded-full" />
+                        </div>
+                        <div className="space-y-1">
+                            <div className="w-1/2 h-1.5 bg-foreground/20 rounded-full" />
+                            <div className="w-full h-1 bg-foreground/5 rounded-full" />
+                        </div>
+                    </div>
+                </div>
+            )
         }
     ]
 }

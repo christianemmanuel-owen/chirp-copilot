@@ -8,6 +8,7 @@ import {
     Sparkles,
     Plus,
     Trash2,
+    Layers,
     ArrowRight,
     ArrowLeft,
     ArrowDown,
@@ -116,6 +117,31 @@ export default function SectionSettings({
     return (
         <div className="space-y-8 py-2 max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-muted-foreground/20">
 
+            {/* Variant Selector for Footer */}
+            {sectionType === "footer" && (
+                <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Layers className="size-3" />
+                        Footer Variant
+                    </Label>
+                    <div className="grid grid-cols-3 gap-2 bg-muted/30 p-1 rounded-xl border border-border/50">
+                        {['v1', 'v2', 'v3'].map((v) => (
+                            <Button
+                                key={v}
+                                variant={section?.metadata?.variant === v || (!section?.metadata?.variant && v === 'v1') ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => onChange(background as SectionBackground, { metadata: { ...section?.metadata, variant: v } })}
+                                className={cn(
+                                    "rounded-lg text-[10px] font-black uppercase tracking-tight h-8",
+                                    (section?.metadata?.variant === v || (!section?.metadata?.variant && v === 'v1')) ? "shadow-md" : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {v === 'v1' ? 'Standard' : v === 'v2' ? 'Minimal' : 'Modern'}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Color Layer */}
             <div className="space-y-4">

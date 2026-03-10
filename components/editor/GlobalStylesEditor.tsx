@@ -41,6 +41,11 @@ const COLOR_GROUPS: Array<{
         label: string
         helper: string
     }>
+    custom?: Array<{
+        key: string
+        label: string
+        helper: string
+    }>
 }> = [
         {
             title: "Brand & Actions",
@@ -68,6 +73,17 @@ const COLOR_GROUPS: Array<{
                 { key: "background", label: "Page Background", helper: "The main canvas behind all sections." },
                 { key: "card", label: "Surface Background", helper: "Cards, floating panels, and floating badges." },
                 { key: "border", label: "Dividers & Borders", helper: "Soft lines for structural separation." },
+            ]
+        },
+        {
+            title: "Navigation",
+            description: "Control the appearance of the top navigation bar.",
+            fields: [
+                { key: "navbarBackground", label: "Background", helper: "Solid color for the navbar background (when Solid style is chosen)." },
+                { key: "navbarText", label: "Text & Icons", helper: "Color for links, icons, and text in the navbar." },
+            ],
+            custom: [
+                { key: "navbarStyle", label: "Navbar Style", helper: "Choose between a frosted glass effect or a solid color background." }
             ]
         }
     ]
@@ -248,6 +264,46 @@ export default function GlobalStylesEditor({ theme, onChange, isSaving }: Global
                                     />
                                 </div>
                                 <p className="text-[10px] text-muted-foreground font-medium leading-relaxed italic">{field.helper}</p>
+                            </div>
+                        ))}
+                        {group.custom?.map((customField) => (
+                            <div key={customField.key} className="group flex flex-col gap-3 col-span-full sm:col-span-1">
+                                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">
+                                    {customField.label}
+                                </Label>
+                                {customField.key === 'navbarStyle' && (
+                                    <div className="flex bg-muted/30 p-1 rounded-xl border border-border/50">
+                                        <Button
+                                            type="button"
+                                            variant={theme.experimental?.navbar?.navbarStyle === 'glass' ? 'default' : 'ghost'}
+                                            className={cn(
+                                                "flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                                                theme.experimental?.navbar?.navbarStyle === 'glass'
+                                                    ? "bg-primary text-primary-foreground shadow-sm"
+                                                    : "hover:bg-white text-muted-foreground"
+                                            )}
+                                            onClick={() => onChange({ experimental: { ...theme.experimental!, navbar: { ...theme.experimental?.navbar!, navbarStyle: 'glass' } } })}
+                                            disabled={isSaving}
+                                        >
+                                            Glass
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant={theme.experimental?.navbar?.navbarStyle === 'solid' ? 'default' : 'ghost'}
+                                            className={cn(
+                                                "flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                                                theme.experimental?.navbar?.navbarStyle === 'solid'
+                                                    ? "bg-primary text-primary-foreground shadow-sm"
+                                                    : "hover:bg-white text-muted-foreground"
+                                            )}
+                                            onClick={() => onChange({ experimental: { ...theme.experimental!, navbar: { ...theme.experimental?.navbar!, navbarStyle: 'solid' } } })}
+                                            disabled={isSaving}
+                                        >
+                                            Solid
+                                        </Button>
+                                    </div>
+                                )}
+                                <p className="text-[10px] text-muted-foreground font-medium leading-relaxed italic">{customField.helper}</p>
                             </div>
                         ))}
                     </div>

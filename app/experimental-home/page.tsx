@@ -60,6 +60,7 @@ export default async function ExperimentalHomePage({ searchParams }: Experimenta
                     faviconUrl={settings?.favicon_url || null}
                     useLogo={experimental.navbar?.useLogo || false}
                     dropdownMode={experimental.navbar?.dropdownMode || "categories"}
+                    navbarStyle={experimental.navbar?.navbarStyle || "glass"}
                     navCategories={catalogData.navCategories}
                     navBrands={catalogData.navBrands}
                 />

@@ -61,10 +61,93 @@ export default function EcommerceFooter({ businessName, mission, newsletterBlurb
                             </Link>
                         </div>
                     )}
-                    <div className="pt-8 border-t border-white/5 w-full flex justify-center">
+                    <div className="pt-8 border-t border-white/5 w-full flex flex-col items-center gap-1.5 pb-8">
                         <p className="text-[10px] font-bold text-accent-foreground/30 uppercase tracking-[0.3em]">
                             &copy; {currentYear} {businessName}. All rights reserved.
                         </p>
+                        <p className="text-[10px] font-bold text-accent-foreground/30 uppercase tracking-[0.3em] opacity-80">
+                            Powered by CHIRP Copilot
+                        </p>
+                    </div>
+                </div>
+            </footer>
+        )
+    }
+
+    // Variation 3: Modern Split
+    if (variant === "v3") {
+        return (
+            <footer
+                className="bg-accent text-accent-foreground border-t border-white/5 pt-24 pb-8"
+                data-section-id={sectionId}
+                style={sectionStyleContainer}
+            >
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="flex flex-col lg:flex-row justify-between items-start gap-16 lg:gap-8 mb-24">
+                        {/* Massive Brand Statement */}
+                        <div className="lg:max-w-xl space-y-8">
+                            {!isHidden("footerBrand") && (
+                                <Link href="/" className="text-6xl md:text-8xl font-black tracking-tighter uppercase leading-none block">
+                                    {businessName}
+                                </Link>
+                            )}
+                            {!isHidden("footerMission") && (
+                                <p
+                                    className="text-accent-foreground/60 font-medium text-lg md:text-xl leading-relaxed max-w-md"
+                                    data-element-key="footerMission"
+                                    style={styles?.footerMission}
+                                    dangerouslySetInnerHTML={{ __html: mission || "Elevating your lifestyle with curated, high-end essentials designed for intentional living." }}
+                                />
+                            )}
+                        </div>
+
+                        {/* Organized Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-12 lg:gap-16 w-full lg:w-auto">
+                            {!isHidden("footerColumns") && (
+                                <>
+                                    <div data-no-edit="true">
+                                        <h4 className="font-black uppercase tracking-widest text-xs text-accent-foreground/40 mb-6">Shop</h4>
+                                        <ul className="space-y-3">
+                                            <li><Link href="/catalog" className="text-accent-foreground hover:text-white transition-colors font-bold text-sm">Catalog</Link></li>
+                                            <li><Link href="/catalog?category=Drinkware" className="text-accent-foreground hover:text-white transition-colors font-bold text-sm">Drinkware</Link></li>
+                                            <li><Link href="/catalog?category=Coffee" className="text-accent-foreground hover:text-white transition-colors font-bold text-sm">Coffee Beans</Link></li>
+                                            <li><Link href="/catalog?category=Accessories" className="text-accent-foreground hover:text-white transition-colors font-bold text-sm">Accessories</Link></li>
+                                        </ul>
+                                    </div>
+                                    <div data-no-edit="true">
+                                        <h4 className="font-black uppercase tracking-widest text-xs text-accent-foreground/40 mb-6">Support</h4>
+                                        <ul className="space-y-3">
+                                            <li><Link href="/track-order" className="text-accent-foreground hover:text-white transition-colors font-bold text-sm">Track Order</Link></li>
+                                            <li><Link href="/faq" className="text-accent-foreground hover:text-white transition-colors font-bold text-sm">FAQ</Link></li>
+                                            <li><Link href="/shipping" className="text-accent-foreground hover:text-white transition-colors font-bold text-sm">Shipping</Link></li>
+                                            <li><Link href="/contact" className="text-accent-foreground hover:text-white transition-colors font-bold text-sm">Contact</Link></li>
+                                        </ul>
+                                    </div>
+                                </>
+                            )}
+                            {!isHidden("footerSocials") && (
+                                <div>
+                                    <h4 className="font-black uppercase tracking-widest text-xs text-accent-foreground/40 mb-6">Connect</h4>
+                                    <ul className="space-y-3">
+                                        <li><Link href={styles?.socialLinkInsta?.linkUrl || "#"} className="text-accent-foreground hover:text-white transition-colors font-bold text-sm flex items-center gap-2" data-element-key="socialLinkInsta"><Instagram className="size-4" /> Instagram</Link></li>
+                                        <li><Link href={styles?.socialLinkFb?.linkUrl || "#"} className="text-accent-foreground hover:text-white transition-colors font-bold text-sm flex items-center gap-2" data-element-key="socialLinkFb"><Facebook className="size-4" /> Facebook</Link></li>
+                                        <li><Link href={styles?.socialLinkTwitter?.linkUrl || "#"} className="text-accent-foreground hover:text-white transition-colors font-bold text-sm flex items-center gap-2" data-element-key="socialLinkTwitter"><Twitter className="size-4" /> Twitter</Link></li>
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Bottom Bar */}
+                    <div className="pt-8 border-t border-accent-foreground/10 flex flex-col md:flex-row justify-between items-center gap-6" data-no-edit="true">
+                        <div className="flex flex-col items-center md:items-start gap-1.5 text-xs font-bold text-accent-foreground/50 uppercase tracking-widest">
+                            <p>&copy; {currentYear} {businessName}. All rights reserved.</p>
+                            <p className="hover:text-white transition-colors">Powered by CHIRP Copilot</p>
+                        </div>
+                        <div className="flex gap-8">
+                            <Link href="#" className="text-[10px] font-black uppercase tracking-widest text-accent-foreground/40 hover:text-white transition-colors">Privacy</Link>
+                            <Link href="#" className="text-[10px] font-black uppercase tracking-widest text-accent-foreground/40 hover:text-white transition-colors">Terms</Link>
+                        </div>
                     </div>
                 </div>
             </footer>
@@ -137,13 +220,16 @@ export default function EcommerceFooter({ businessName, mission, newsletterBlurb
                     )}
                 </div>
 
-                <div className="mt-20 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6" data-no-edit="true">
-                    <p className="text-xs font-bold text-accent-foreground/50 uppercase tracking-[0.3em]">
-                        &copy; {currentYear} {businessName}. All rights reserved.
-                    </p>
-                    <div className="flex gap-8">
-                        <Link href="#" className="text-[10px] font-black uppercase tracking-widest text-accent-foreground/50 hover:text-white transition-colors">Privacy Policy</Link>
-                        <Link href="#" className="text-[10px] font-black uppercase tracking-widest text-accent-foreground/50 hover:text-white transition-colors">Terms of Service</Link>
+                <div className="mt-20 pt-8 border-t border-white/5 space-y-8" data-no-edit="true">
+                    <div className="flex flex-col md:flex-row justify-between items-center w-full gap-6">
+                        <div className="text-xs font-bold text-accent-foreground/50 uppercase tracking-[0.3em] flex flex-col items-center md:items-start gap-1.5">
+                            <p>&copy; {currentYear} {businessName}. All rights reserved.</p>
+                            <p className="opacity-60">Powered by CHIRP Copilot</p>
+                        </div>
+                        <div className="flex gap-8">
+                            <Link href="#" className="text-[10px] font-black uppercase tracking-widest text-accent-foreground/50 hover:text-white transition-colors">Privacy Policy</Link>
+                            <Link href="#" className="text-[10px] font-black uppercase tracking-widest text-accent-foreground/50 hover:text-white transition-colors">Terms of Service</Link>
+                        </div>
                     </div>
                 </div>
             </div>

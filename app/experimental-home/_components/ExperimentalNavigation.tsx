@@ -22,6 +22,7 @@ interface ExperimentalNavigationProps {
     dropdownMode: "categories" | "brands"
     navCategories: NavCollectionItem[]
     navBrands: NavCollectionItem[]
+    navbarStyle?: 'glass' | 'solid'
     transparentTheme?: "light" | "dark" | "glass"
 }
 
@@ -30,8 +31,9 @@ export default function ExperimentalNavigation({
     faviconUrl,
     useLogo,
     dropdownMode,
-    navCategories,
-    navBrands,
+    navCategories = [],
+    navBrands = [],
+    navbarStyle = 'glass',
     transparentTheme = "dark",
 }: ExperimentalNavigationProps) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -94,19 +96,19 @@ export default function ExperimentalNavigation({
     // Animation Variants
     const fullWidth = windowWidth > 0 ? windowWidth : "100%"
     const pillWidth = windowWidth > 0 ? Math.min(1000, windowWidth * 0.9) : "90%"
-
+    // Layout variants
     const navVariants = {
         top: {
             width: fullWidth,
             height: "96px",
             borderRadius: "0px",
             y: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.1)",
-            backdropFilter: "blur(50px) saturate(200%) brightness(0.8) contrast(1.1)",
-            borderColor: "rgba(255, 255, 255, 0.4)",
+            backgroundColor: navbarStyle === 'glass' ? "rgba(0, 0, 0, 0.1)" : "var(--navbar-background)",
+            backdropFilter: navbarStyle === 'glass' ? "blur(50px) saturate(200%) brightness(0.8) contrast(1.1)" : "none",
+            borderColor: navbarStyle === 'glass' ? "rgba(255, 255, 255, 0.4)" : "rgba(0,0,0,0.05)",
             borderBottomWidth: "1.2px",
             borderTopWidth: "1.2px",
-            boxShadow: "inset 0 0 0 1px rgba(255, 255, 255, 0.1)",
+            boxShadow: navbarStyle === 'glass' ? "inset 0 0 0 1px rgba(255, 255, 255, 0.1)" : "none",
             paddingLeft: "24px",
             paddingRight: "24px",
         },
@@ -115,25 +117,27 @@ export default function ExperimentalNavigation({
             height: "64px",
             borderRadius: "32px",
             y: 16,
-            backgroundColor: "rgba(0, 0, 0, 0.1)",
-            backdropFilter: "blur(50px) saturate(200%) brightness(0.8) contrast(1.1)",
-            borderColor: "rgba(255, 255, 255, 0.5)",
+            backgroundColor: navbarStyle === 'glass' ? "rgba(0, 0, 0, 0.1)" : "var(--navbar-background)",
+            backdropFilter: navbarStyle === 'glass' ? "blur(50px) saturate(200%) brightness(0.8) contrast(1.1)" : "none",
+            borderColor: navbarStyle === 'glass' ? "rgba(255, 255, 255, 0.5)" : "rgba(0,0,0,0.1)",
             borderWidth: "1.2px",
-            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.1)",
+            boxShadow: navbarStyle === 'glass'
+                ? "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.1)"
+                : "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
             paddingLeft: "24px",
             paddingRight: "24px",
         }
     }
 
-    // Text color variants based on transparentTheme
+    // Text color variants
     const textVariants = {
         top: {
-            color: "rgba(255, 255, 255, 0.98)",
-            textShadow: "0 2px 10px rgba(0,0,0,0.35)"
+            color: navbarStyle === 'glass' ? "rgba(255, 255, 255, 0.98)" : "var(--navbar-text)",
+            textShadow: navbarStyle === 'glass' ? "0 2px 10px rgba(0,0,0,0.35)" : "none"
         },
         scrolled: {
-            color: "rgba(255, 255, 255, 0.98)",
-            textShadow: "0 2px 8px rgba(0,0,0,0.3)"
+            color: navbarStyle === 'glass' ? "rgba(255, 255, 255, 0.98)" : "var(--navbar-text)",
+            textShadow: navbarStyle === 'glass' ? "0 2px 8px rgba(0,0,0,0.3)" : "none"
         }
     }
 

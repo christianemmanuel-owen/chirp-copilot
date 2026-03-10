@@ -85,6 +85,7 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                 useLogo={experimental.navbar?.useLogo || false}
                 dropdownMode={experimental.navbar?.dropdownMode || "categories"}
                 transparentTheme={experimental.navbar?.transparentTheme || "dark"}
+                navbarStyle={experimental.navbar?.navbarStyle || "glass"}
                 navCategories={catalogData.navCategories}
                 navBrands={catalogData.navBrands}
             />

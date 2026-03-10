@@ -27,6 +27,8 @@ export interface StorefrontThemeColors {
   border: string
   buttonColor: string
   buttonText: string
+  navbarBackground: string
+  navbarText: string
 }
 
 export interface SectionBackground {
@@ -56,6 +58,7 @@ export interface StorefrontThemeConfig {
       useLogo: boolean
       dropdownMode: "categories" | "brands"
       transparentTheme?: "light" | "dark" | "glass"
+      navbarStyle?: "glass" | "solid"
     }
     content?: {
       heroTitle?: string
@@ -210,6 +213,8 @@ export const DEFAULT_THEME_COLORS: StorefrontThemeColors = {
   border: "#dfe3ec",
   buttonColor: "#6355ff",
   buttonText: "#ffffff",
+  navbarBackground: "#ffffff",
+  navbarText: "#1d1a2b",
 }
 
 export const DEFAULT_THEME_CONFIG: StorefrontThemeConfig = {
@@ -313,6 +318,8 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
       border: sanitizeHexColor(payload.colors.border, base.colors.border),
       buttonColor: sanitizeHexColor(payload.colors.buttonColor, base.colors.buttonColor),
       buttonText: sanitizeHexColor(payload.colors.buttonText, base.colors.buttonText),
+      navbarBackground: sanitizeHexColor(payload.colors.navbarBackground, base.colors.navbarBackground),
+      navbarText: sanitizeHexColor(payload.colors.navbarText, base.colors.navbarText),
     }
   }
 
@@ -326,7 +333,8 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
       navbar: {
         useLogo: exp.navbar?.useLogo ?? false,
         dropdownMode: exp.navbar?.dropdownMode ?? 'categories',
-        transparentTheme: exp.navbar?.transparentTheme ?? 'dark'
+        transparentTheme: exp.navbar?.transparentTheme ?? 'dark',
+        navbarStyle: exp.navbar?.navbarStyle ?? 'glass'
       },
       content: {
         heroTitle: "Exquisite Pieces.",
@@ -419,6 +427,8 @@ export const themeConfigToCssVariables = (config: StorefrontThemeConfig): Record
     "--sidebar-accent-foreground": colors.cardForeground,
     "--sidebar-border": colors.border,
     "--sidebar-ring": colors.accent,
+    "--navbar-background": colors.navbarBackground,
+    "--navbar-text": colors.navbarText,
     "--font-storefront": font.stack,
   }
 }

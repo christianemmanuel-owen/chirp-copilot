@@ -24,7 +24,17 @@ import {
     Trash2,
     ChevronDown,
     ChevronRight,
-    EyeOff as EyeOffIcon
+    EyeOff as EyeOffIcon,
+    Monitor,
+    Tablet,
+    Smartphone,
+    Maximize,
+    Minimize,
+    X,
+    Layout,
+    ChevronUp,
+    Pin,
+    PinOff
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
@@ -111,6 +121,12 @@ export default function VisualEditorPage() {
     const [catalogSelectionRequest, setCatalogSelectionRequest] = useState<SelectionRequest | null>(null)
     const [isSectionLibraryOpen, setIsSectionLibraryOpen] = useState(false)
     const [iconSelectionRequest, setIconSelectionRequest] = useState<any>(null)
+
+    const [previewSize, setPreviewSize] = useState<'laptop' | 'tablet' | 'phone'>('laptop')
+    const [activePage, setActivePage] = useState<'home' | 'catalog'>('home')
+    const [isFullscreen, setIsFullscreen] = useState(false)
+    const [isPinned, setIsPinned] = useState(true)
+    const [isToolbarHovered, setIsToolbarHovered] = useState(false)
 
     const toggleSectionExpansion = (id: string) => {
         setExpandedSections(prev =>
@@ -449,7 +465,7 @@ export default function VisualEditorPage() {
                             ? { color: "#f8fafc" }
                             : (type === "about" && variant === "v5")
                                 ? { color: "#ffffff" }
-                                : (type === "footer" && variant === "v2")
+                                : (type === "footer" && (variant === "v2" || variant === "v3"))
                                     ? { color: "#000000" }
                                     : undefined
         }
@@ -631,7 +647,7 @@ export default function VisualEditorPage() {
                                                         <div
                                                             {...provided.droppableProps}
                                                             ref={provided.innerRef}
-                                                            className="space-y-4"
+                                                            className="space-y-2"
                                                         >
                                                             {(config.experimental?.layout || []).map((section: any, idx: number) => {
                                                                 const isExpanded = expandedSections.includes(section.id)
@@ -646,8 +662,8 @@ export default function VisualEditorPage() {
                                                                                 className={`${snapshot.isDragging ? "z-50 shadow-2xl scale-105" : ""} transition-transform`}
                                                                             >
                                                                                 <Card className={`overflow-hidden border-2 ${snapshot.isDragging ? "border-primary bg-white" : "border-border/50 hover:border-primary/30 bg-white"} transition-all group shadow-none rounded-2xl`}>
-                                                                                    <div className="p-4">
-                                                                                        <div className="flex items-center gap-4">
+                                                                                    <div className="py-1.5 px-3">
+                                                                                        <div className="flex items-center gap-2">
                                                                                             <div
                                                                                                 {...provided.dragHandleProps}
                                                                                                 className="text-muted-foreground group-hover:text-primary transition-colors cursor-grab active:cursor-grabbing"
@@ -658,10 +674,10 @@ export default function VisualEditorPage() {
                                                                                                 className="flex-1 cursor-pointer flex items-center gap-2"
                                                                                                 onClick={() => toggleSectionExpansion(section.id)}
                                                                                             >
-                                                                                                {isExpanded ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}
+                                                                                                {isExpanded ? <ChevronDown className="size-2.5 text-muted-foreground" /> : <ChevronRight className="size-2.5 text-muted-foreground" />}
                                                                                                 <div className="flex flex-col">
-                                                                                                    <span className="text-xs font-black uppercase tracking-tight text-foreground">{section.type}</span>
-                                                                                                    {!section.enabled && <span className="text-[10px] font-bold text-muted-foreground/50">Hidden from page</span>}
+                                                                                                    <span className="text-[10px] font-black uppercase tracking-tight text-foreground">{section.type}</span>
+                                                                                                    {!section.enabled && <span className="text-[8px] font-bold text-muted-foreground/50">Hidden</span>}
                                                                                                 </div>
                                                                                             </div>
 
@@ -671,7 +687,7 @@ export default function VisualEditorPage() {
                                                                                                         <Button
                                                                                                             variant="ghost"
                                                                                                             size="icon"
-                                                                                                            className="size-8 rounded-lg"
+                                                                                                            className="size-7 rounded-lg"
                                                                                                             title="Section Styles & Content"
                                                                                                         >
                                                                                                             <MoreHorizontal className="size-4 opacity-40 hover:opacity-100" />
@@ -714,7 +730,7 @@ export default function VisualEditorPage() {
                                                                                                 <Button
                                                                                                     variant="ghost"
                                                                                                     size="icon"
-                                                                                                    className="size-8 rounded-lg"
+                                                                                                    className="size-7 rounded-lg"
                                                                                                     title={section.enabled ? "Hide Section" : "Show Section"}
                                                                                                     onClick={() => {
                                                                                                         const newLayout = config.experimental.layout.map((item: any, i: number) => {
@@ -738,7 +754,7 @@ export default function VisualEditorPage() {
                                                                                                 <Button
                                                                                                     variant="ghost"
                                                                                                     size="icon"
-                                                                                                    className="size-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                                                                    className="size-7 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                                                                                     title="Delete Section"
                                                                                                     onClick={() => handleRemoveSection(section.id)}
                                                                                                 >
@@ -823,7 +839,13 @@ export default function VisualEditorPage() {
                                                             ...prev.theme,
                                                             ...updates,
                                                             colors: updates.colors ? { ...prev.theme.colors, ...updates.colors } : prev.theme.colors
-                                                        }
+                                                        },
+                                                        ...(updates.experimental && {
+                                                            experimental: {
+                                                                ...prev.experimental,
+                                                                ...updates.experimental
+                                                            }
+                                                        })
                                                     }))
                                                 }}
                                             />
@@ -835,84 +857,204 @@ export default function VisualEditorPage() {
 
                     </Tabs>
                 </div>
-
-                <div className="p-6 border-t bg-muted/30">
-                    <div className="flex items-center justify-between w-full">
-                        <div className="flex bg-white shadow-sm border rounded-xl p-1">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-9 rounded-lg hover:bg-muted"
-                                onClick={undo}
-                                disabled={history.past.length === 0}
-                                title="Undo"
-                            >
-                                <Undo2 className="size-4" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-9 rounded-lg hover:bg-muted"
-                                onClick={redo}
-                                disabled={history.future.length === 0}
-                                title="Redo"
-                            >
-                                <Redo2 className="size-4" />
-                            </Button>
-                            <Separator orientation="vertical" className="h-6 mx-1 my-auto" />
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-9 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                onClick={reset}
-                                title="Reset to Last Save"
-                            >
-                                <RotateCcw className="size-4" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-9 rounded-lg text-destructive hover:text-white hover:bg-destructive"
-                                onClick={startFromScratch}
-                                title="Start From Scratch"
-                            >
-                                <RefreshCcw className="size-4" />
-                            </Button>
-                        </div>
-                        <Button
-                            size="lg"
-                            className="rounded-xl font-bold px-8 shadow-md hover:shadow-lg transition-all"
-                            onClick={handleSave}
-                            disabled={isSaving}
-                        >
-                            {isSaving ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />}
-                            Save
-                        </Button>
-                    </div>
-                </div>
             </div>
 
             {/* Live Preview */}
-            <div className="flex-1 bg-slate-100 relative group overflow-hidden">
-                {!isSidebarOpen && (
-                    <Button
-                        variant="secondary"
-                        size="icon"
-                        className="absolute top-6 left-4 z-50 rounded-xl shadow-md border border-border/50 bg-white/50 backdrop-blur-md hover:bg-white transition-opacity"
-                        onClick={() => setIsSidebarOpen(true)}
-                        title="Expand Sidebar"
-                    >
-                        <PanelLeftOpen className="size-4" />
-                    </Button>
+            <div className={`flex-1 bg-slate-100 flex flex-col transition-all duration-500 overflow-hidden ${isFullscreen ? 'fixed inset-0 z-[100]' : 'relative'}`}>
+                {/* Hover Trigger Zone (when unpinned) */}
+                {!isPinned && (
+                    <div
+                        className="absolute top-0 left-0 right-0 h-8 z-[90]"
+                        onMouseEnter={() => setIsToolbarHovered(true)}
+                        onMouseLeave={() => setIsToolbarHovered(false)}
+                    />
                 )}
 
-                <div className={`absolute top-6 right-12 bottom-6 bg-white shadow-2xl rounded-3xl overflow-hidden border-8 border-slate-200/50 transition-all duration-700 group-hover:scale-[1.005] ${isSidebarOpen ? 'left-16' : 'left-16'}`}>
-                    <iframe
-                        ref={previewRef}
-                        src="/?preview=true"
-                        className="w-full h-full border-none"
-                        title="Storefront Preview"
-                    />
+                {/* Toolbar Indicator (Subtle Notch) */}
+                {!isPinned && !isToolbarHovered && (
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-muted-foreground/20 rounded-b-full z-[80] transition-opacity duration-300 pointer-events-none" />
+                )}
+
+                {/* Preview Toolbar - Permanent Overlay */}
+                <div
+                    className={`absolute top-0 left-0 right-0 z-[100] pointer-events-none transition-all duration-500 ${isPinned || isToolbarHovered ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full'}`}
+                    onMouseEnter={() => setIsToolbarHovered(true)}
+                    onMouseLeave={() => setIsToolbarHovered(false)}
+                >
+                    <div className={`
+                        h-14 bg-white/80 backdrop-blur-md flex items-center justify-between transition-all duration-300 ease-in-out overflow-hidden pointer-events-auto
+                        ${isFullscreen ? 'mx-12 mt-6 rounded-2xl shadow-2xl border border-white/20' : 'px-6 border-b border-border/50'}
+                    `}>
+                        {/* Left Group: Sidebar, History & Save */}
+                        <div className="flex items-center gap-3">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`size-8 rounded-lg text-muted-foreground transition-all ${!isSidebarOpen ? 'opacity-100 w-8' : 'opacity-0 w-0 pointer-events-none'}`}
+                                onClick={() => setIsSidebarOpen(true)}
+                                title="Show Sidebar"
+                            >
+                                <PanelLeftOpen className="size-4" />
+                            </Button>
+
+                            <div className="flex items-center bg-muted/50 p-1 rounded-xl border border-border/20">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8 rounded-lg text-muted-foreground hover:bg-white/80 disabled:opacity-30"
+                                    onClick={undo}
+                                    disabled={history.past.length === 0}
+                                    title="Undo"
+                                >
+                                    <Undo2 className="size-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8 rounded-lg text-muted-foreground hover:bg-white/80 disabled:opacity-30"
+                                    onClick={redo}
+                                    disabled={history.future.length === 0}
+                                    title="Redo"
+                                >
+                                    <Redo2 className="size-4" />
+                                </Button>
+                                <Separator orientation="vertical" className="h-4 mx-1" />
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                    onClick={reset}
+                                    title="Reset to Last Save"
+                                >
+                                    <RotateCcw className="size-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8 rounded-lg text-destructive hover:text-white hover:bg-destructive"
+                                    onClick={startFromScratch}
+                                    title="Start From Scratch"
+                                >
+                                    <RefreshCcw className="size-4" />
+                                </Button>
+                                <Separator orientation="vertical" className="h-4 mx-1" />
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    className="h-8 rounded-lg shadow-sm px-3 ml-1"
+                                    onClick={handleSave}
+                                    disabled={isSaving}
+                                >
+                                    {isSaving ? <Loader2 className="size-3 animate-spin mr-2" /> : <Save className="size-3 mr-2" />}
+                                    <span className="text-xs font-bold">Save</span>
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Center Group: Pages & Devices (Unified) */}
+                        <div className="flex items-center bg-muted/50 p-1 rounded-xl border border-border/20">
+                            <div className="flex items-center">
+                                <Button
+                                    variant={activePage === 'home' ? 'default' : 'ghost'}
+                                    size="sm"
+                                    className={`rounded-lg h-8 text-[10px] font-black uppercase tracking-widest px-4 transition-all ${activePage === 'home' ? 'shadow-sm text-white' : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'}`}
+                                    onClick={() => setActivePage('home')}
+                                >
+                                    Home
+                                </Button>
+                                <Button
+                                    variant={activePage === 'catalog' ? 'default' : 'ghost'}
+                                    size="sm"
+                                    className={`rounded-lg h-8 text-[10px] font-black uppercase tracking-widest px-4 transition-all ${activePage === 'catalog' ? 'shadow-sm text-white' : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'}`}
+                                    onClick={() => setActivePage('catalog')}
+                                >
+                                    Catalog
+                                </Button>
+                            </div>
+
+                            <Separator orientation="vertical" className="h-4 mx-1.5 opacity-50" />
+
+                            <div className="flex items-center">
+                                <Button
+                                    variant={previewSize === 'laptop' ? 'secondary' : 'ghost'}
+                                    size="icon"
+                                    className={`size-8 rounded-lg transition-all ${previewSize === 'laptop' ? 'shadow-sm bg-background text-primary' : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'}`}
+                                    onClick={() => setPreviewSize('laptop')}
+                                    title="Desktop View"
+                                >
+                                    <Monitor className="size-4" />
+                                </Button>
+                                <Button
+                                    variant={previewSize === 'tablet' ? 'secondary' : 'ghost'}
+                                    size="icon"
+                                    className={`size-8 rounded-lg transition-all ${previewSize === 'tablet' ? 'shadow-sm bg-background text-primary' : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'}`}
+                                    onClick={() => setPreviewSize('tablet')}
+                                    title="Tablet View"
+                                >
+                                    <Tablet className="size-4" />
+                                </Button>
+                                <Button
+                                    variant={previewSize === 'phone' ? 'secondary' : 'ghost'}
+                                    size="icon"
+                                    className={`size-8 rounded-lg transition-all ${previewSize === 'phone' ? 'shadow-sm bg-background text-primary' : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'}`}
+                                    onClick={() => setPreviewSize('phone')}
+                                    title="Mobile View"
+                                >
+                                    <Smartphone className="size-4" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Right Group: Status & Control */}
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant={isFullscreen ? "destructive" : "ghost"}
+                                size="icon"
+                                className={`size-8 rounded-lg transition-all ${isFullscreen ? 'bg-destructive text-white hover:bg-destructive/90' : 'text-muted-foreground hover:bg-muted'}`}
+                                onClick={() => setIsFullscreen(!isFullscreen)}
+                                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Preview"}
+                            >
+                                {isFullscreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
+                            </Button>
+                            <Button
+                                variant={isPinned ? "secondary" : "ghost"}
+                                size="icon"
+                                className={`size-8 rounded-lg transition-all ${isPinned ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:bg-muted'}`}
+                                onClick={() => setIsPinned(!isPinned)}
+                                title={isPinned ? "Unpin Toolbar" : "Pin Toolbar"}
+                            >
+                                {isPinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Preview Frame Container */}
+                <div className={`flex-1 relative flex items-center justify-center p-6 transition-all duration-500 overflow-hidden ${isFullscreen ? 'bg-slate-900' : 'bg-slate-50'}`}>
+                    {isFullscreen && (
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_rgba(0,0,0,0.4)_100%)] pointer-events-none" />
+                    )}
+                    <div
+                        className={`bg-white shadow-2xl overflow-hidden transition-all duration-500 ease-in-out border-8 border-slate-900/90 relative
+                            ${previewSize === 'laptop' ? 'w-full h-full rounded-2xl' : ''}
+                            ${previewSize === 'tablet' ? 'w-[768px] h-[1024px] max-h-full rounded-[3rem] border-[12px]' : ''}
+                            ${previewSize === 'phone' ? 'w-[390px] h-[844px] max-h-full rounded-[3.5rem] border-[14px]' : ''}
+                        `}
+                    >
+                        {/* Status Bar / Notch for Mobile/Tablet */}
+                        {(previewSize === 'phone' || previewSize === 'tablet') && (
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900/90 rounded-b-2xl z-50 flex items-center justify-center">
+                                <div className="w-12 h-1 bg-white/20 rounded-full" />
+                            </div>
+                        )}
+
+                        <iframe
+                            ref={previewRef}
+                            src="/?preview=true"
+                            className="w-full h-full border-none"
+                            title="Storefront Preview"
+                        />
+                    </div>
                 </div>
             </div>
             {iconSelectionRequest && (
