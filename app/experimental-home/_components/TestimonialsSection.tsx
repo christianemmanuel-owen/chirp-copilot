@@ -1,28 +1,27 @@
 import { SectionHeader } from "@/app/experimental-home/_components/SectionHeader"
 import { Star } from "lucide-react"
 
-const TESTIMONIALS = [
-    {
-        name: "SOPHIE RENARD",
-        role: "Interior Designer",
-        content: "The attention to detail in CHIRP's products is unparalleled. It's rare to find such high-end quality at these prices.",
-        avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1974&auto=format&fit=crop"
-    },
-    {
-        name: "MARCUS CHEN",
-        role: "Architect",
-        content: "I've integrated CHIRP pieces into several projects, and they always become the focal point. Truly exceptional craftsmanship.",
-        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1974&auto=format&fit=crop"
-    },
-    {
-        name: "ELENA ROSSI",
-        role: "Collector",
-        content: "Each piece feels like a work of art. The delivery was seamless and the products exceeded my highest expectations.",
-        avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=2070&auto=format&fit=crop"
-    }
-]
-
-export default function TestimonialsSection() {
+export default function TestimonialsSection({ businessName = process.env.NEXT_PUBLIC_BUSINESS_NAME || "Storefront" }: { businessName?: string }) {
+    const TESTIMONIALS = [
+        {
+            name: "SOPHIE RENARD",
+            role: "Interior Designer",
+            content: `The attention to detail in ${businessName}'s products is unparalleled. It's rare to find such high-end quality at these prices.`,
+            avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1974&auto=format&fit=crop"
+        },
+        {
+            name: "MARCUS CHEN",
+            role: "Architect",
+            content: `I've integrated ${businessName} pieces into several projects, and they always become the focal point. Truly exceptional craftsmanship.`,
+            avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1974&auto=format&fit=crop"
+        },
+        {
+            name: "ELENA ROSSI",
+            role: "Collector",
+            content: "Each piece feels like a work of art. The delivery was seamless and the products exceeded my highest expectations.",
+            avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=2070&auto=format&fit=crop"
+        }
+    ]
     return (
         <section className="py-24 bg-white">
             <div className="max-w-7xl mx-auto px-6">

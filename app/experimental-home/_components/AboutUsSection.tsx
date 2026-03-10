@@ -4,6 +4,7 @@ import { Quote } from "lucide-react"
 import { AVAILABLE_ICONS, type IconName } from "@/lib/icons"
 
 interface AboutUsSectionProps {
+    businessName?: string
     title?: string
     content?: string
     styles?: Record<string, any>
@@ -13,7 +14,7 @@ interface AboutUsSectionProps {
     variant?: string
 }
 
-export default function AboutUsSection({ title, content, styles, sectionId, background, hiddenFields, variant = "v1" }: AboutUsSectionProps) {
+export default function AboutUsSection({ businessName = process.env.NEXT_PUBLIC_BUSINESS_NAME || "Storefront", title, content, styles, sectionId, background, hiddenFields, variant = "v1" }: AboutUsSectionProps) {
     const isHidden = (key: string) => hiddenFields?.includes(key)
     const sectionStyles = getSectionStyles(background)
 

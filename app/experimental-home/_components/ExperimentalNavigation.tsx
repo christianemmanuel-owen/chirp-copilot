@@ -101,9 +101,9 @@ export default function ExperimentalNavigation({
             height: "96px",
             borderRadius: "0px",
             y: 0,
-            backgroundColor: "rgba(255, 255, 255, 0.12)",
-            backdropFilter: "blur(50px) saturate(190%) brightness(0.85) contrast(1.02)",
-            borderColor: "rgba(255, 255, 255, 0.5)",
+            backgroundColor: "rgba(0, 0, 0, 0.1)",
+            backdropFilter: "blur(50px) saturate(200%) brightness(0.8) contrast(1.1)",
+            borderColor: "rgba(255, 255, 255, 0.4)",
             borderBottomWidth: "1.2px",
             borderTopWidth: "1.2px",
             boxShadow: "inset 0 0 0 1px rgba(255, 255, 255, 0.1)",
@@ -115,9 +115,9 @@ export default function ExperimentalNavigation({
             height: "64px",
             borderRadius: "32px",
             y: 16,
-            backgroundColor: "rgba(255, 255, 255, 0.12)",
-            backdropFilter: "blur(50px) saturate(190%) brightness(0.85) contrast(1.02)",
-            borderColor: "rgba(255, 255, 255, 0.6)",
+            backgroundColor: "rgba(0, 0, 0, 0.1)",
+            backdropFilter: "blur(50px) saturate(200%) brightness(0.8) contrast(1.1)",
+            borderColor: "rgba(255, 255, 255, 0.5)",
             borderWidth: "1.2px",
             boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.1)",
             paddingLeft: "24px",
@@ -162,7 +162,7 @@ export default function ExperimentalNavigation({
                             transition={springTransition}
                             className="text-2xl font-bold tracking-tight"
                         >
-                            CHIRP
+                            {businessName}
                         </motion.span>
                     </Link>
 

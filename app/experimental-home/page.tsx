@@ -38,7 +38,7 @@ export default async function ExperimentalHomePage({ searchParams }: Experimenta
     const themeConfig = buildThemeConfig(settings?.theme_config)
     const experimental = themeConfig.experimental!
 
-    const businessName = (settings?.theme_config as any)?.businessName || "CHIRP"
+    const businessName = (settings?.theme_config as any)?.businessName || process.env.NEXT_PUBLIC_BUSINESS_NAME || "Storefront"
 
     const layout = experimental.layout!
 

@@ -10,6 +10,7 @@ import AboutUsSection from "./AboutUsSection"
 import FeaturedProductsSection from "./FeaturedProductsSection"
 import EcommerceFooter from "./EcommerceFooter"
 import ExperimentalNavigation from "./ExperimentalNavigation"
+import TestimonialsSection from "./TestimonialsSection"
 
 import nextDynamic from "next/dynamic"
 
@@ -73,7 +74,7 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
 
     const experimental = settings.experimental || {}
     const themeConfig = settings.theme_config || settings.theme || {}
-    const businessName = themeConfig.businessName || settings.businessName || "CHIRP"
+    const businessName = themeConfig.businessName || settings.businessName || process.env.NEXT_PUBLIC_BUSINESS_NAME || "Storefront"
 
     return (
         <>
@@ -143,12 +144,20 @@ export default function InteractivePreviewWrapper({ initialSettings, catalogData
                             <AboutUsSection
                                 key={section.id}
                                 sectionId={section.id}
+                                businessName={businessName}
                                 title={experimental.content?.aboutTitle}
                                 content={experimental.content?.aboutContent}
                                 styles={section.styles}
                                 background={section.background}
                                 hiddenFields={section.hiddenFields}
                                 variant={section.metadata?.variant}
+                            />
+                        )
+                    case "testimonials":
+                        return (
+                            <TestimonialsSection
+                                key={section.id}
+                                businessName={businessName}
                             />
                         )
                     case "featured": {
