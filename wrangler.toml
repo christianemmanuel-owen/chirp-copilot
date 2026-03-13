@@ -1,16 +1,7 @@
 name = "chirp-copilot"
-main = ".open-next/worker.js"
 compatibility_date = "2024-12-30"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 pages_build_output_dir = ".open-next/assets"
-
-[assets]
-directory = ".open-next/assets"
-binding = "OPEN_NEXT_ASSETS"
-
-[[services]]
-binding = "WORKER_SELF_REFERENCE"
-service = "chirp-copilot"
 
 [[d1_databases]]
 binding = "DB"
