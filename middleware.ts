@@ -1,26 +1,62 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { evaluateRateLimit, getClientKey } from "@/lib/rate-limit"
-import { getToken } from "next-auth/jwt"
+import { jwtVerify } from "jose"
 
 // Define admin subdomains that should not be treated as tenant slugs
 const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth"]
+
+/**
+ * Manually decode the NextAuth.js session JWT from cookies.
+ * This avoids importing anything from next-auth, which pulls in
+ * @auth/core and its async_hooks dependency (unsupported on Cloudflare Edge).
+ */
+async function getSessionFromCookie(request: NextRequest) {
+  const secret = process.env.AUTH_SECRET
+  if (!secret) return null
+
+  // NextAuth v5 uses these cookie names
+  const cookieName =
+    request.nextUrl.protocol === "https:"
+      ? "__Secure-authjs.session-token"
+      : "authjs.session-token"
+
+  const token = request.cookies.get(cookieName)?.value
+  if (!token) return null
+
+  try {
+    const secretKey = new TextEncoder().encode(secret)
+    const { payload } = await jwtVerify(token, secretKey, {
+      algorithms: ["HS256"],
+    })
+    return {
+      user: {
+        id: payload.sub,
+        projects: (payload as any).projects || [],
+      },
+    }
+  } catch {
+    return null
+  }
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const hostname = request.headers.get("host") || ""
 
   // Resolve tenant from subdomain
-  const parts = hostname.split('.')
-  const tenantSlug = parts.length > 2 || (hostname.includes('localhost') && parts.length > 1) ? parts[0] : null
+  const parts = hostname.split(".")
+  const tenantSlug =
+    parts.length > 2 || (hostname.includes("localhost") && parts.length > 1)
+      ? parts[0]
+      : null
 
   const isApiRoute = pathname.startsWith("/api/")
   const isAdminPage = pathname.startsWith("/admin")
   const isLoginPage = pathname === "/login" || pathname === "/signup"
 
-  // Use getToken() instead of auth() to avoid pulling in async_hooks
-  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET })
-  const session = token ? { user: { id: token.sub, projects: token.projects } } : null
+  // Decode session from JWT cookie — no next-auth import needed
+  const session = await getSessionFromCookie(request)
 
   // Inject tenant info into headers for API usage
   const requestHeaders = new Headers(request.headers)
@@ -48,11 +84,19 @@ export async function middleware(request: NextRequest) {
   }
 
   // Ensure Admin is on the correct subdomain for their project
-  if (isAdminPage && session && tenantSlug && !RESERVED_SUBDOMAINS.includes(tenantSlug)) {
+  if (
+    isAdminPage &&
+    session &&
+    tenantSlug &&
+    !RESERVED_SUBDOMAINS.includes(tenantSlug)
+  ) {
     const userProjects = (session.user as any)?.projects || []
     const hasAccess = userProjects.some((p: any) => p.slug === tenantSlug)
     if (!hasAccess) {
-      return new NextResponse("Forbidden: You do not have access to this project", { status: 403 })
+      return new NextResponse(
+        "Forbidden: You do not have access to this project",
+        { status: 403 }
+      )
     }
   }
 
@@ -63,33 +107,35 @@ export async function middleware(request: NextRequest) {
 
   // Rate Limiting for API
   if (isApiRoute) {
-    const clientKey = getClientKey((request as any).ip, request.headers.get("x-forwarded-for"))
+    const clientKey = getClientKey(
+      (request as any).ip,
+      request.headers.get("x-forwarded-for")
+    )
     const { allowed, resetAt } = evaluateRateLimit(clientKey)
 
     if (allowed) {
       return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
+        request: { headers: requestHeaders },
       })
     }
 
-    const retryAfterSeconds = Math.max(1, Math.ceil((resetAt - Date.now()) / 1000))
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((resetAt - Date.now()) / 1000)
+    )
     const response = NextResponse.json(
       {
         error: "Too many requests",
         message: "You have sent too many requests. Please try again later.",
       },
-      { status: 429 },
+      { status: 429 }
     )
     response.headers.set("Retry-After", retryAfterSeconds.toString())
     return response
   }
 
   return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
+    request: { headers: requestHeaders },
   })
 }
 
