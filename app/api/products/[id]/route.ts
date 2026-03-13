@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/db"
 import { products as productsSchema, productCategories, productVariants, variantSizes, brands, categories } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and, inArray } from "drizzle-orm"
 import { resolveBrandId, resolveCategoryIds } from "../utils"
 import type { UpdateProductInput } from "@/lib/types"
+
+export const runtime = "edge"
 
 function parseId(id: string) {
   const numericId = Number(id)
@@ -18,7 +21,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const { id: idParam } = await context.params
     const id = parseId(idParam)
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }
@@ -82,7 +86,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "No product fields provided for update" }, { status: 400 })
     }
 
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }
@@ -163,7 +168,8 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   try {
     const { id: idParam } = await context.params
     const id = parseId(idParam)
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }

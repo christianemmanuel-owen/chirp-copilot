@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/db"
 import {
   instagramConnections
@@ -6,13 +7,16 @@ import {
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and } from "drizzle-orm"
 
+export const runtime = "edge"
+
 interface DisconnectPayload {
   connectionId?: string
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
     const tenantId = await ensureTenantId(request, d1)

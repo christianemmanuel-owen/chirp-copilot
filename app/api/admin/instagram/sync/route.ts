@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/db"
 import {
     instagramConnections,
@@ -11,9 +12,12 @@ import {
     fetchConversationMessages,
 } from "@/lib/meta/instagram"
 
+export const runtime = "edge"
+
 export async function POST(request: NextRequest) {
     try {
-        const d1 = (process.env as any).DB as D1Database
+        const { env } = getRequestContext()
+        const d1 = env.DB
         if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
         const tenantId = await ensureTenantId(request, d1)

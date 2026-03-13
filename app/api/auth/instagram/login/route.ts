@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { INSTAGRAM_RETURN_TO_COOKIE, INSTAGRAM_STATE_COOKIE } from "@/lib/meta/constants"
 import { buildOAuthState, getRedirectUri, getRequiredScopes } from "@/lib/meta/instagram"
 
+export const runtime = "edge"
+
 export async function GET(request: NextRequest) {
-  const appId = process.env.FACEBOOK_APP_ID
+  const { env } = getRequestContext()
+  const appId = (env as any).FACEBOOK_APP_ID
 
   if (!appId) {
     console.error("[instagram][login] FACEBOOK_APP_ID is not configured")

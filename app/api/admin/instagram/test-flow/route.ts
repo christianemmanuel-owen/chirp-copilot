@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
+
+export const runtime = "edge"
 
 /**
  * Test endpoint to verify OAuth flow configuration
  * Visit: http://localhost:3000/api/admin/instagram/test-flow
  */
 export async function GET() {
-    const appId = process.env.FACEBOOK_APP_ID
-    const appSecret = process.env.FACEBOOK_APP_SECRET
-    const redirectUri = process.env.INSTAGRAM_OAUTH_REDIRECT_URI
-    const scopes = process.env.INSTAGRAM_REQUIRED_SCOPES
+    const { env } = getRequestContext()
+    const appId = (env as any).FACEBOOK_APP_ID
+    const appSecret = (env as any).FACEBOOK_APP_SECRET
+    const redirectUri = (env as any).INSTAGRAM_OAUTH_REDIRECT_URI
+    const scopes = (env as any).INSTAGRAM_REQUIRED_SCOPES
 
     const issues: string[] = []
     const warnings: string[] = []

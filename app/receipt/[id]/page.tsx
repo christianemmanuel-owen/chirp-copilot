@@ -2,11 +2,14 @@ import { notFound } from "next/navigation"
 
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
-import { mapOrderRowToOrder } from "@/lib/supabase/transformers"
+import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getDb } from "@/lib/db"
+import { orders as ordersSchema, projects as projectsSchema, storefrontSettings as storefrontSettingsSchema } from "@/lib/db/schema"
+import { getTenantIdFromHeaders } from "@/lib/db/tenant"
+import { eq, and } from "drizzle-orm"
 import type { Order } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
-import { BUSINESS_NAME } from "@/lib/config"
+import { headers } from "next/headers"
 import DownloadReceiptButton from "./download-receipt-button"
 import { CreditCard, Package, User, MapPin, Receipt, CheckCircle2 } from "lucide-react"
 
@@ -16,14 +19,68 @@ export default async function ReceiptPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = getSupabaseServiceRoleClient()
-  const { data, error } = await supabase.from("orders").select("*").eq("id", id).single()
-
-  if (error || !data) {
+  const { env } = getRequestContext()
+  const d1 = env.DB
+  if (!d1) {
     notFound()
   }
 
-  const order = mapOrderRowToOrder(data)
+  const db = getDb(d1)
+  const headerList = await headers()
+  const tenantId = await getTenantIdFromHeaders(headerList, d1)
+
+  if (!tenantId) {
+    notFound()
+  }
+
+  // Fetch the order and join with project settings
+  const orderRecord = await db.query.orders.findFirst({
+    where: and(
+      eq(ordersSchema.id, id),
+      eq(ordersSchema.projectId, tenantId)
+    ),
+  })
+
+  if (!orderRecord) {
+    notFound()
+  }
+
+  // Fetch project name
+  const project = await db.query.projects.findFirst({
+    where: eq(projectsSchema.id, tenantId)
+  })
+
+  const businessName = project?.name || "CHIRP"
+
+  const order: Order = {
+    ...orderRecord,
+    date: orderRecord.createdAt?.toISOString() || new Date().toISOString(),
+    customer: {
+      firstName: orderRecord.customerFirstName || "",
+      lastName: orderRecord.customerLastName || "",
+      email: orderRecord.customerEmail || "",
+      phone: orderRecord.customerPhone || "",
+      instagramHandle: orderRecord.instagramHandle,
+    },
+    delivery: {
+      unit: orderRecord.deliveryUnit || "",
+      lot: orderRecord.deliveryLot || "",
+      street: orderRecord.deliveryStreet || "",
+      city: orderRecord.deliveryCity || "",
+      region: orderRecord.deliveryRegion || "",
+      zipCode: orderRecord.deliveryZipCode || "",
+      country: orderRecord.deliveryCountry || "",
+    },
+    items: JSON.parse(orderRecord.orderItems as string),
+    status: orderRecord.status as any,
+    fulfillmentMethod: orderRecord.fulfillmentMethod as any,
+    total: orderRecord.total || 0,
+    subtotal: orderRecord.subtotal || 0,
+    vat: (orderRecord.total || 0) * 0.12 / 1.12, // Approximation
+    shippingFee: orderRecord.shippingFee || 0,
+    paymentMethod: orderRecord.paymentMethod as any,
+    updatedAt: orderRecord.updatedAt?.toISOString() || undefined,
+  } as any
   const isPickup = order.fulfillmentMethod === "pickup"
   const orderDate = new Date(order.date)
   const formattedDate = orderDate.toLocaleDateString("en-PH", {
@@ -57,7 +114,7 @@ export default async function ReceiptPage({
           {/* Header Section */}
           <header className="relative bg-slate-900 px-8 py-10 text-center text-white">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-slate-700 via-slate-400 to-slate-700 opacity-30" />
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400">{BUSINESS_NAME}</p>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400">{businessName}</p>
             <h1 className="text-2xl font-black uppercase tracking-[0.2em]">Official E-Receipt</h1>
             <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider backdrop-blur-sm">
               <Receipt className="size-3.5" />
@@ -223,7 +280,7 @@ export default async function ReceiptPage({
 
           <footer className="bg-slate-50/80 px-8 py-10 text-center">
             <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 leading-relaxed max-w-sm mx-auto">
-              This e-receipt serves as an official record of your purchase from {BUSINESS_NAME}. Verified secure electronic document.
+              This e-receipt serves as an official record of your purchase from {businessName}. Verified secure electronic document.
             </p>
           </footer>
         </section>

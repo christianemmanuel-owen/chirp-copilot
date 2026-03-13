@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
+
+export const runtime = "edge"
 
 export async function POST(request: Request) {
   try {
@@ -8,8 +11,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL
-    const adminPassword = process.env.ADMIN_PASSWORD
+    const { env } = getRequestContext()
+    const adminEmail = (env as any).ADMIN_EMAIL
+    const adminPassword = (env as any).ADMIN_PASSWORD
 
     if (!adminEmail || !adminPassword) {
       console.error("[auth][login] Missing ADMIN_EMAIL or ADMIN_PASSWORD env vars")

@@ -1,7 +1,12 @@
 import crypto from "node:crypto"
 import { NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getDb } from "@/lib/db"
+import { instagramConnections, instagramMessages } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, and } from "drizzle-orm"
 
+export const runtime = "edge"
 export const dynamic = "force-dynamic"
 
 function isValidSignature(secret: string, rawBody: string, headerSignature: string | null) {
@@ -18,11 +23,12 @@ function isValidSignature(secret: string, rawBody: string, headerSignature: stri
 
 // Webhook verification for Meta
 export async function GET(request: Request) {
+  const { env } = getRequestContext()
   const url = new URL(request.url)
   const mode = url.searchParams.get("hub.mode")
   const verifyToken = url.searchParams.get("hub.verify_token")
   const challenge = url.searchParams.get("hub.challenge")
-  const expectedToken = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN
+  const expectedToken = (env as any).INSTAGRAM_WEBHOOK_VERIFY_TOKEN
 
   const isSubscribe = mode === "subscribe"
   const tokenMatches = expectedToken && verifyToken === expectedToken
@@ -63,7 +69,8 @@ interface WebhookPayload {
 
 // Process incoming Instagram DM webhook events
 export async function POST(request: Request) {
-  const appSecret = process.env.FACEBOOK_APP_SECRET
+  const { env } = getRequestContext()
+  const appSecret = (env as any).FACEBOOK_APP_SECRET
   if (!appSecret) {
     return NextResponse.json({ error: "App secret not configured" }, { status: 500 })
   }
@@ -85,23 +92,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true }, { status: 200 })
     }
 
-    const supabase = getSupabaseServiceRoleClient()
+    const d1 = env.DB
+    if (!d1) {
+      console.error("[instagram][webhook] DB binding missing")
+      return NextResponse.json({ error: "Configuration error" }, { status: 500 })
+    }
+    const db = getDb(d1)
 
     for (const entry of payload.entry ?? []) {
       const pageId = entry.id
 
       // Find the connection for this page
-      const { data: connection, error: connectionError } = await supabase
-        .from("instagram_connections")
-        .select("*")
-        .eq("instagram_business_account_id", pageId)
-        .eq("status", "connected")
-        .maybeSingle()
-
-      if (connectionError) {
-        console.error("[instagram][webhook] Failed to fetch connection", connectionError)
-        continue
-      }
+      const connection = await db.query.instagramConnections.findFirst({
+        where: and(
+          eq(instagramConnections.instagramBusinessAccountId, pageId),
+          eq(instagramConnections.status, "connected")
+        )
+      })
 
       if (!connection) {
         console.warn("[instagram][webhook] No connection found for page:", pageId)
@@ -117,10 +124,10 @@ export async function POST(request: Request) {
         const recipientId = messaging.recipient.id
         const messageId = messaging.message.mid
         const messageText = messaging.message.text ?? null
-        const timestamp = new Date(messaging.timestamp).toISOString()
+        const timestamp = new Date(messaging.timestamp)
 
         // Determine if this is from the page or customer
-        const isFromPage = senderId === pageId || senderId === connection.instagram_business_account_id
+        const isFromPage = senderId === pageId || senderId === connection.instagramBusinessAccountId
 
         // Build conversation ID (consistent ordering)
         const participantIds = [senderId, recipientId].sort()
@@ -135,31 +142,26 @@ export async function POST(request: Request) {
         }))
 
         // Upsert the message (ignore duplicates)
-        const { error: insertError } = await supabase
-          .from("instagram_messages")
-          .upsert(
-            {
-              connection_id: connection.id,
-              conversation_id: conversationId,
-              instagram_message_id: messageId,
-              sender_id: senderId,
-              sender_name: null, // Not provided in webhook
-              sender_username: null, // Not provided in webhook
-              is_from_page: isFromPage,
-              message_text: messageText,
+        try {
+          await db.insert(instagramMessages)
+            .values({
+              projectId: connection.projectId,
+              connectionId: connection.id,
+              conversationId: conversationId,
+              instagramMessageId: messageId,
+              senderId: senderId,
+              senderName: null, // Not provided in webhook
+              senderUsername: null, // Not provided in webhook
+              isFromPage: isFromPage,
+              messageText: messageText,
               attachments: attachments,
-              sent_at: timestamp,
-            },
-            {
-              onConflict: "connection_id,instagram_message_id",
-              ignoreDuplicates: true,
-            }
-          )
+              sentAt: timestamp,
+            })
+            .onConflictDoNothing()
 
-        if (insertError) {
-          console.error("[instagram][webhook] Failed to insert message", insertError)
-        } else {
           console.log("[instagram][webhook] Stored message:", messageId)
+        } catch (insertError) {
+          console.error("[instagram][webhook] Failed to insert message", insertError)
         }
       }
     }

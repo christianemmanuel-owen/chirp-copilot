@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/db"
 import { categories } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and, sql } from "drizzle-orm"
+
+export const runtime = "edge"
 
 function normalizeName(value: unknown): string {
   if (typeof value !== "string") return ""
@@ -12,7 +15,8 @@ function normalizeName(value: unknown): string {
 
 export async function GET(request: Request) {
   try {
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }
@@ -41,7 +45,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Category name is required" }, { status: 400 })
     }
 
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }

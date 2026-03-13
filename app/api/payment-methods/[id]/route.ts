@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/db"
 import { paymentMethods as paymentMethodsSchema } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
@@ -24,10 +25,13 @@ function parseBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
+export const runtime = "edge"
+
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
     const tenantId = await ensureTenantId(request, d1)
@@ -107,7 +111,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
     const tenantId = await ensureTenantId(request, d1)

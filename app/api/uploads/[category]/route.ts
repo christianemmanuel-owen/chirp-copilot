@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { randomUUID } from "crypto"
+
+export const runtime = "edge"
 
 const BUCKET_MAP = {
   products: "product-images",
@@ -39,8 +42,9 @@ export async function POST(request: Request, context: { params: Promise<{ catego
       return NextResponse.json({ error: "Missing file in upload payload" }, { status: 400 })
     }
 
-    // In Cloudflare, R2 bindings are on process.env in NextCloudflarePages
-    const bucket = (process.env as any).BUCKET as R2Bucket
+    // In Cloudflare, R2 bindings are on env in getRequestContext()
+    const { env } = getRequestContext()
+    const bucket = env.UPLOADS as unknown as R2Bucket
     if (!bucket) {
       return NextResponse.json({ error: "R2 Bucket binding not found" }, { status: 500 })
     }
@@ -68,7 +72,7 @@ export async function POST(request: Request, context: { params: Promise<{ catego
 
     // Construct the public URL
     // Note: You must configure a custom domain or public access for the R2 bucket
-    const publicBaseUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "https://assets.chirp.com"
+    const publicBaseUrl = (env as any).NEXT_PUBLIC_R2_PUBLIC_URL || "https://assets.chirp.com"
     const publicUrl = `${publicBaseUrl}/${objectPath}`
 
     return NextResponse.json({ url: publicUrl, path: objectPath })

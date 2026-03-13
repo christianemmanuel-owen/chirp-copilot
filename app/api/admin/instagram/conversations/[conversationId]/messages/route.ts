@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/db"
 import {
     instagramConnections,
@@ -6,6 +7,8 @@ import {
 } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and, asc, desc } from "drizzle-orm"
+
+export const runtime = "edge"
 
 export interface MessageItem {
     id: string
@@ -30,7 +33,8 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
-        const d1 = (process.env as any).DB as D1Database
+        const { env } = getRequestContext()
+        const d1 = env.DB
         if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
         const tenantId = await ensureTenantId(request, d1)

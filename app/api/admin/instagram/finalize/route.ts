@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { INSTAGRAM_RETURN_TO_COOKIE, INSTAGRAM_STATE_COOKIE } from "@/lib/meta/constants"
 import { getDb } from "@/lib/db"
 import { instagramConnections, instagramOAuthSessions } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { and, eq } from "drizzle-orm"
+
+export const runtime = "edge"
 
 interface FinalizeRequestBody {
   sessionId?: string
@@ -34,7 +37,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "sessionId and pageId are required" }, { status: 400 })
   }
 
-  const d1 = (process.env as any).DB as D1Database
+  const { env } = getRequestContext()
+  const d1 = env.DB
   if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
   const tenantId = await ensureTenantId(request, d1)

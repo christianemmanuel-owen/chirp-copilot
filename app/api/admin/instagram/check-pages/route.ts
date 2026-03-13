@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
+export const runtime = "edge"
+
 /**
  * Debug endpoint to check what Facebook Pages and Instagram accounts are accessible
  * This helps diagnose why no Instagram Business Accounts are found
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
             }, { status: 500 })
         }
 
-        const pagesData = await pagesResponse.json()
+        const pagesData = (await pagesResponse.json()) as any
         const pages = pagesData.data || []
 
         // For each page, try to get Instagram account details
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
                     )
 
                     if (igResponse.ok) {
-                        const igData = await igResponse.json()
+                        const igData = (await igResponse.json()) as any
                         result.instagramAccount = {
                             id: igData.id,
                             username: igData.username,

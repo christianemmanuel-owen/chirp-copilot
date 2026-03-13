@@ -21,11 +21,15 @@ import {
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { Suspense } from "react"
-import { StoreProvider } from "@/lib/store"
-import { CartProvider } from "@/lib/cart"
+import { Providers } from "@/components/providers"
 import { BUSINESS_NAME } from "@/lib/config"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getDb } from "@/lib/db"
+import { storefrontSettings as storefrontSettingsSchema } from "@/lib/db/schema"
+import { getTenantIdFromHeaders } from "@/lib/db/tenant"
+import { eq } from "drizzle-orm"
 import { buildThemeConfig, DEFAULT_THEME_CONFIG, themeConfigToCssVariables } from "@/lib/storefront-theme"
+import { headers } from "next/headers"
 
 const DEFAULT_ICON = "/icon.png"
 
@@ -56,26 +60,33 @@ export default async function RootLayout({
 }>) {
   let faviconUrl = DEFAULT_ICON
   let themeConfig = DEFAULT_THEME_CONFIG
-  try {
-    const supabase = getSupabaseServiceRoleClient()
-    const { data, error } = await supabase
-      .from("storefront_settings")
-      .select("favicon_url, theme_config")
-      .eq("id", 1)
-      .maybeSingle()
 
-    if (error) {
-      console.error("[layout] Failed to load favicon configuration", error)
-    } else if (typeof data?.favicon_url === "string") {
-      const trimmed = data.favicon_url.trim()
-      if (trimmed.length > 0) {
-        faviconUrl = trimmed
+  try {
+    const { env } = getRequestContext()
+    const d1 = env.DB
+    if (d1) {
+      const headerList = await headers()
+      const tenantId = await getTenantIdFromHeaders(headerList, d1)
+
+      if (tenantId) {
+        const db = getDb(d1)
+        const settings = await db.query.storefrontSettings.findFirst({
+          where: eq(storefrontSettingsSchema.projectId, tenantId)
+        })
+
+        if (settings) {
+          if (typeof settings.faviconUrl === "string") {
+            const trimmed = settings.faviconUrl.trim()
+            if (trimmed.length > 0) {
+              faviconUrl = trimmed
+            }
+          }
+          themeConfig = buildThemeConfig((settings.themeConfig as any) ?? DEFAULT_THEME_CONFIG)
+        }
       }
     }
-
-    themeConfig = buildThemeConfig(data?.theme_config ?? DEFAULT_THEME_CONFIG)
   } catch (error) {
-    console.error("[layout] Unexpected error while resolving favicon", error)
+    console.error("[layout] Unexpected error while resolving storefront settings", error)
   }
 
   const themeStyles = themeConfigToCssVariables(themeConfig)
@@ -92,11 +103,9 @@ export default async function RootLayout({
         style={themeStyles as React.CSSProperties}
       >
 
-        <StoreProvider>
-          <CartProvider>
-            <Suspense fallback={null}>{children}</Suspense>
-          </CartProvider>
-        </StoreProvider>
+        <Providers>
+          <Suspense fallback={null}>{children}</Suspense>
+        </Providers>
         <Analytics />
       </body>
     </html>

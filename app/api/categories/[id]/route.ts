@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/db"
 import { categories } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and } from "drizzle-orm"
+
+export const runtime = "edge"
 
 function parseId(value: string) {
   const numeric = Number(value)
@@ -29,7 +32,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       return NextResponse.json({ error: "Category name is required" }, { status: 400 })
     }
 
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
     const tenantId = await ensureTenantId(request, d1)
@@ -79,7 +83,8 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     const { id: idParam } = await context.params
     const id = parseId(idParam)
 
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
     const tenantId = await ensureTenantId(request, d1)

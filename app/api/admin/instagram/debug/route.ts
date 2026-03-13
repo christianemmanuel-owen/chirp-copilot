@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
+
+export const runtime = "edge"
 
 export async function GET() {
+    const { env } = getRequestContext()
     const diagnostics = {
         timestamp: new Date().toISOString(),
         environment: {
-            FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID ? "✓ Set" : "✗ Missing",
-            FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET ? "✓ Set" : "✗ Missing",
-            INSTAGRAM_OAUTH_REDIRECT_URI: process.env.INSTAGRAM_OAUTH_REDIRECT_URI || "Not set (will use dynamic)",
-            INSTAGRAM_REQUIRED_SCOPES: process.env.INSTAGRAM_REQUIRED_SCOPES || "Using defaults",
-            INSTAGRAM_WEBHOOK_VERIFY_TOKEN: process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ? "✓ Set" : "✗ Missing",
+            FACEBOOK_APP_ID: (env as any).FACEBOOK_APP_ID ? "✓ Set" : "✗ Missing",
+            FACEBOOK_APP_SECRET: (env as any).FACEBOOK_APP_SECRET ? "✓ Set" : "✗ Missing",
+            INSTAGRAM_OAUTH_REDIRECT_URI: (env as any).INSTAGRAM_OAUTH_REDIRECT_URI || "Not set (will use dynamic)",
+            INSTAGRAM_REQUIRED_SCOPES: (env as any).INSTAGRAM_REQUIRED_SCOPES || "Using defaults",
+            INSTAGRAM_WEBHOOK_VERIFY_TOKEN: (env as any).INSTAGRAM_WEBHOOK_VERIFY_TOKEN ? "✓ Set" : "✗ Missing",
         },
         requiredScopes: [
             "instagram_basic",
@@ -22,20 +26,20 @@ export async function GET() {
         oauthFlow: {
             loginUrl: "/api/auth/instagram/login",
             callbackUrl: "/api/auth/instagram/callback",
-            configuredRedirectUri: process.env.INSTAGRAM_OAUTH_REDIRECT_URI,
+            configuredRedirectUri: (env as any).INSTAGRAM_OAUTH_REDIRECT_URI,
         },
         checklist: [
             {
                 step: "1. Meta App Created",
                 description: "Create a Meta developer app with Instagram Graph API and Messenger API enabled",
-                status: process.env.FACEBOOK_APP_ID ? "✓" : "✗",
+                status: (env as any).FACEBOOK_APP_ID ? "✓" : "✗",
             },
             {
                 step: "2. Redirect URI Configured",
                 description: "Add the redirect URI to Meta App's Valid OAuth Redirect URIs",
-                status: process.env.INSTAGRAM_OAUTH_REDIRECT_URI ? "⚠" : "✗",
-                note: process.env.INSTAGRAM_OAUTH_REDIRECT_URI
-                    ? `Ensure ${process.env.INSTAGRAM_OAUTH_REDIRECT_URI} is added to Meta App settings`
+                status: (env as any).INSTAGRAM_OAUTH_REDIRECT_URI ? "⚠" : "✗",
+                note: (env as any).INSTAGRAM_OAUTH_REDIRECT_URI
+                    ? `Ensure ${(env as any).INSTAGRAM_OAUTH_REDIRECT_URI} is added to Meta App settings`
                     : "Will use dynamic URL - ensure it's whitelisted in Meta App",
             },
             {

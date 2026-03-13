@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { INSTAGRAM_RETURN_TO_COOKIE, INSTAGRAM_STATE_COOKIE } from "@/lib/meta/constants"
 import { exchangeCodeForLongLivedToken, fetchInstagramPageCandidates, getRedirectUri } from "@/lib/meta/instagram"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { getDb } from "@/lib/db"
+import { instagramOAuthSessions } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+
+export const runtime = "edge"
 
 function sanitizeReturnTo(returnTo: string | null | undefined, fallback: string, origin: string) {
   if (!returnTo) {
@@ -55,12 +60,13 @@ export async function GET(request: NextRequest) {
   const errorParam = url.searchParams.get("error")
   const errorDescription = url.searchParams.get("error_description")
 
+  const { env } = getRequestContext()
   const stateCookie = request.cookies.get(INSTAGRAM_STATE_COOKIE)?.value
   const returnToCookie = request.cookies.get(INSTAGRAM_RETURN_TO_COOKIE)?.value
   const isProduction = process.env.NODE_ENV === "production"
 
   // Use the configured redirect URI's origin to avoid localhost HTTPS issues
-  const configuredRedirectUri = process.env.INSTAGRAM_OAUTH_REDIRECT_URI
+  const configuredRedirectUri = (env as any).INSTAGRAM_OAUTH_REDIRECT_URI
   let origin = `${url.protocol}//${url.host}`
 
   if (configuredRedirectUri) {
@@ -133,23 +139,27 @@ export async function GET(request: NextRequest) {
     const { longLivedToken, expiresAt, scopes } = await exchangeCodeForLongLivedToken({ code, redirectUri })
     const pageCandidates = await fetchInstagramPageCandidates(longLivedToken)
 
-    const supabase = getSupabaseServiceRoleClient()
-    const { data, error } = await supabase
-      .from("instagram_oauth_sessions")
-      .insert({
+    const d1 = env.DB
+    if (!d1) throw new Error("DB binding missing")
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
+    const [session] = await db.insert(instagramOAuthSessions)
+      .values({
+        projectId: tenantId,
         state: stateParam,
-        long_lived_user_token: longLivedToken,
-        long_lived_user_token_expires_at: expiresAt,
+        longLivedUserToken: longLivedToken,
+        longLivedUserTokenExpiresAt: expiresAt ? new Date(expiresAt) : null,
         pages: pageCandidates,
+        expiresAt: new Date(Date.now() + 1000 * 60 * 15), // 15 mins expiry for the session
         metadata: {
           scopes,
         },
       })
-      .select()
-      .single()
+      .returning()
 
-    if (error || !data) {
-      throw error ?? new Error("Failed to persist OAuth session")
+    if (!session) {
+      throw new Error("Failed to persist OAuth session")
     }
 
     return buildRedirectResponse(
@@ -157,7 +167,7 @@ export async function GET(request: NextRequest) {
       sanitizedReturnTo,
       {
         status: pageCandidates.length > 0 ? "pending" : "no_pages",
-        session: data.id,
+        session: session.id,
         message:
           pageCandidates.length > 0
             ? undefined

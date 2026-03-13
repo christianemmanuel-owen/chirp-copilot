@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { z } from "zod"
 import { getDb } from "@/lib/db"
 import {
@@ -9,6 +10,8 @@ import {
 } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and, inArray } from "drizzle-orm"
+
+export const runtime = "edge"
 
 const idSchema = z.string().uuid({ message: "Invalid campaign id" })
 const dateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD format")
@@ -37,7 +40,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       return NextResponse.json({ error: "Invalid campaign ID" }, { status: 400 })
     }
 
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
     const tenantId = await ensureTenantId(request, d1)
@@ -155,7 +159,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await context.params
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
     const tenantId = await ensureTenantId(request, d1)

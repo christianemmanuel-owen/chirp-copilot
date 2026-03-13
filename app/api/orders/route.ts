@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/db"
 import { orders as ordersSchema, storefrontSettings } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
@@ -8,7 +9,8 @@ import type { FulfillmentMethod, NewOrderInput } from "@/lib/types"
 import { generateOrderId } from "@/lib/utils"
 import { calculateShippingFee, type ShippingFeeConfig } from "../../../lib/shipping"
 
-const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY
+export const runtime = "edge"
+
 const TURNSTILE_EXPECTED_ACTION = "checkout_submission"
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
 const RATE_LIMIT_MAX_ATTEMPTS = 5
@@ -37,15 +39,15 @@ function registerAndCheckRateLimit(ip: string): boolean {
   return recent.length > RATE_LIMIT_MAX_ATTEMPTS
 }
 
-async function verifyTurnstileToken(token: string, remoteIp?: string | null): Promise<boolean> {
-  if (!TURNSTILE_SECRET_KEY) {
+async function verifyTurnstileToken(token: string, secret: string | undefined, remoteIp?: string | null): Promise<boolean> {
+  if (!secret) {
     console.error("[orders][POST] Turnstile secret is not configured")
     return false
   }
 
   try {
     const params = new URLSearchParams({
-      secret: TURNSTILE_SECRET_KEY,
+      secret: secret,
       response: token,
     })
     if (remoteIp) {
@@ -94,7 +96,8 @@ export async function GET(request: Request) {
     const limitParam = searchParams.get("limit")
     const limit = limitParam ? parseInt(limitParam, 10) : 200
 
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }
@@ -125,7 +128,8 @@ export async function POST(request: Request) {
 
     const { captchaToken, ...payload } = rawPayload
 
-    const d1 = (process.env as any).DB as D1Database
+    const { env } = getRequestContext()
+    const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }
@@ -138,7 +142,8 @@ export async function POST(request: Request) {
     const clientIp = isAdminRequest ? null : getClientIp(request)
 
     if (!isAdminRequest) {
-      if (!TURNSTILE_SECRET_KEY) {
+      const turnstileSecret = (env as any).TURNSTILE_SECRET_KEY
+      if (!turnstileSecret) {
         return NextResponse.json({ error: "Captcha verification is not configured" }, { status: 500 })
       }
 
@@ -151,7 +156,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Too many checkout attempts. Please try again later." }, { status: 429 })
       }
 
-      const isCaptchaValid = await verifyTurnstileToken(sanitizedToken, clientIp)
+      const isCaptchaValid = await verifyTurnstileToken(sanitizedToken, turnstileSecret, clientIp)
       if (!isCaptchaValid) {
         return NextResponse.json({ error: "Captcha verification failed" }, { status: 400 })
       }

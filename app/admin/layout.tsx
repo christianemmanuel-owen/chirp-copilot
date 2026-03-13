@@ -15,11 +15,13 @@ import {
   SettingsIcon,
   ShoppingCart,
   User,
+  ChevronDown,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { AdminNotificationsPopover } from "@/components/admin-notifications-popover"
 import { SpeedInsights } from "@vercel/speed-insights/next"
-import { BUSINESS_NAME } from "@/lib/config"
+import { BUSINESS_NAME as DEFAULT_BUSINESS_NAME } from "@/lib/config"
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import {
   DropdownMenu,
@@ -32,7 +34,9 @@ import {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const { data: session, status } = useSession()
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [currentProject, setCurrentProject] = useState<{ name: string; slug: string } | null>(null)
 
   useEffect(() => {
     document.body.classList.add("admin-theme")
@@ -40,6 +44,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       document.body.classList.remove("admin-theme")
     }
   }, [])
+
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      const projects = (session.user as any)?.projects || []
+      const host = typeof window !== "undefined" ? window.location.hostname : ""
+      const parts = host.split('.')
+      const currentSlug = parts.length > 2 || (host.includes('localhost') && parts.length > 1) ? parts[0] : null
+
+      if (currentSlug) {
+        const match = projects.find((p: any) => p.slug === currentSlug)
+        if (match) {
+          setCurrentProject(match)
+        }
+      } else if (projects.length > 0) {
+        // Default to first project if no subdomain (unlikely in prod, possible in dev)
+        setCurrentProject(projects[0])
+      }
+    }
+  }, [session, status])
+
+  const businessName = currentProject?.name || DEFAULT_BUSINESS_NAME
 
   const handleSignOut = async () => {
     if (isSigningOut) return
@@ -87,7 +112,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </SheetTrigger>
               <SheetContent side="left" className="w-[80vw] max-w-xs border-r p-0">
                 <SheetHeader className="border-b px-4 py-4">
-                  <SheetTitle className="text-lg font-semibold">{BUSINESS_NAME}</SheetTitle>
+                  <SheetTitle className="text-lg font-semibold">{businessName}</SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col gap-1 p-3">
                   {navItems.map((item) => {
@@ -135,14 +160,58 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </SheetContent>
             </Sheet>
 
-            {/* Brand */}
-            <Link
-              href="/"
-              className={`adm-nav-brand ${pathname === "/admin" || pathname === "/admin/" ? "adm-nav-brand-active" : ""
-                }`}
-            >
-              {BUSINESS_NAME}
-            </Link>
+            {/* Brand & Project Switcher */}
+            <div className="flex items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className="flex items-center gap-2 group adm-nav-brand-trigger px-2 -ml-2 rounded-xl transition-colors hover:bg-slate-900/5">
+                    <span className={`adm-nav-brand ${pathname === "/admin" || pathname === "/admin/" ? "adm-nav-brand-active" : ""}`}>
+                      {businessName}
+                    </span>
+                    {(session?.user as any)?.projects?.length > 1 && (
+                      <ChevronDown className="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                {(session?.user as any)?.projects?.length > 1 && (
+                  <DropdownMenuContent align="start" className="w-64 rounded-2xl border border-white/20 bg-white/70 p-1.5 shadow-2xl backdrop-blur-xl">
+                    <div className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-black/5 mb-1.5">
+                      Your Shops
+                    </div>
+                    {session?.user && ((session.user as any).projects as any[]).map((p) => {
+                      const isActive = p.slug === currentProject?.slug
+                      return (
+                        <DropdownMenuItem
+                          key={p.id}
+                          className={`flex flex-col items-start gap-1 rounded-xl px-3 py-2.5 transition-colors ${isActive ? "bg-accent/10 border border-accent/20" : "hover:bg-slate-900/5"}`}
+                          onSelect={() => {
+                            if (!isActive) {
+                              const host = window.location.hostname
+                              const parts = host.split('.')
+                              const tenantSlug = parts.length > 2 || (host.includes('localhost') && parts.length > 1) ? parts[0] : null
+                              const newHost = tenantSlug ? host.replace(tenantSlug, p.slug) : `${p.slug}.${host}`
+                              window.location.href = `${window.location.protocol}//${newHost}/admin`
+                            }
+                          }}
+                        >
+                          <div className="flex w-full items-center justify-between">
+                            <span className={`text-sm font-bold ${isActive ? "text-accent" : "text-slate-700"}`}>
+                              {p.name}
+                            </span>
+                            {isActive && (
+                              <div className="size-1.5 rounded-full bg-accent animate-pulse" />
+                            )}
+                          </div>
+                          <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider font-mono">
+                            {p.slug}.chirpro.com
+                          </span>
+                        </DropdownMenuItem>
+                      )
+                    })}
+                  </DropdownMenuContent>
+                )}
+              </DropdownMenu>
+            </div>
 
             {/* Desktop nav links */}
             <div className="adm-nav-links">
