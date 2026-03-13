@@ -1,4 +1,4 @@
-import crypto from "node:crypto"
+
 
 const GRAPH_BASE_URL = "https://graph.facebook.com/v18.0"
 
@@ -52,7 +52,9 @@ export function getRequiredScopes() {
 }
 
 export function buildOAuthState() {
-  return crypto.randomBytes(16).toString("hex")
+  const array = new Uint8Array(16)
+  globalThis.crypto.getRandomValues(array)
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("")
 }
 
 export function getRedirectUri(requestUrl: string) {
