@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { INSTAGRAM_RETURN_TO_COOKIE, INSTAGRAM_STATE_COOKIE } from "@/lib/meta/constants"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { getDb } from "@/lib/db"
+import { instagramConnections, instagramOAuthSessions } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { and, eq } from "drizzle-orm"
 
 interface FinalizeRequestBody {
   sessionId?: string
@@ -31,32 +34,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "sessionId and pageId are required" }, { status: 400 })
   }
 
-  const supabase = getSupabaseServiceRoleClient()
-  const { data: session, error: sessionError } = await supabase
-    .from("instagram_oauth_sessions")
-    .select("*")
-    .eq("id", payload.sessionId)
-    .maybeSingle()
+  const d1 = (process.env as any).DB as D1Database
+  if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
-  if (sessionError) {
-    console.error("[instagram][finalize] Failed to load session", sessionError)
-    return NextResponse.json({ error: "Failed to load Instagram authorization session" }, { status: 500 })
-  }
+  const tenantId = await ensureTenantId(request, d1)
+  const db = getDb(d1)
+
+  const supabase = null // Supabase removed
+
+  const session = await db.query.instagramOAuthSessions.findFirst({
+    where: and(
+      eq(instagramOAuthSessions.id, payload.sessionId),
+      eq(instagramOAuthSessions.projectId, tenantId)
+    )
+  })
 
   if (!session) {
-    return NextResponse.json({ error: "Session not found or already consumed" }, { status: 404 })
+    return NextResponse.json({ error: "Session not found or not owned by project" }, { status: 404 })
   }
 
-  if (session.consumed_at) {
+  if (session.consumedAt) {
     return NextResponse.json({ error: "Session already consumed" }, { status: 409 })
   }
 
-  if (session.expires_at && new Date(session.expires_at) < new Date()) {
+  if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
     return NextResponse.json({ error: "Session has expired" }, { status: 410 })
   }
 
-  const pages = Array.isArray(session.pages) ? session.pages : []
-  const selectedPage = pages.find((page: any) => page?.pageId === payload.pageId)
+  const pages = Array.isArray(session.pages) ? session.pages : (typeof session.pages === 'string' ? JSON.parse(session.pages) : [])
+  const selectedPage = (pages as any[]).find((page: any) => page?.pageId === payload.pageId)
 
   if (!selectedPage) {
     return NextResponse.json({ error: "Selected page is not part of the authorization session" }, { status: 400 })
@@ -66,27 +72,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Selected page is missing Instagram credentials" }, { status: 400 })
   }
 
-  const { data: existingConnection, error: fetchConnectionError } = await supabase
-    .from("instagram_connections")
-    .select("*")
-    .eq("page_id", selectedPage.pageId)
-    .maybeSingle()
+  const existingConnection = await db.query.instagramConnections.findFirst({
+    where: and(
+      eq(instagramConnections.pageId, selectedPage.pageId),
+      eq(instagramConnections.projectId, tenantId)
+    )
+  })
 
-  if (fetchConnectionError) {
-    console.error("[instagram][finalize] Failed to load existing connection", fetchConnectionError)
-    return NextResponse.json({ error: "Failed to verify existing Instagram connection" }, { status: 500 })
-  }
+  const now = new Date()
+  const sessionMetadata = typeof session.metadata === 'string' ? JSON.parse(session.metadata) : session.metadata
 
-  const nowIso = new Date().toISOString()
   const connectionPayload = {
-    page_id: selectedPage.pageId,
-    page_name: selectedPage.pageName ?? null,
-    page_access_token: selectedPage.pageAccessToken,
-    instagram_business_account_id: selectedPage.instagramBusinessAccountId,
-    instagram_username: selectedPage.instagramUsername ?? null,
-    user_access_token: session.long_lived_user_token,
-    user_access_token_expires_at: session.long_lived_user_token_expires_at ?? null,
-    scopes: Array.isArray(session.metadata?.scopes) ? session.metadata.scopes : [],
+    projectId: tenantId,
+    pageId: selectedPage.pageId,
+    pageName: selectedPage.pageName ?? null,
+    pageAccessToken: selectedPage.pageAccessToken,
+    instagramBusinessAccountId: selectedPage.instagramBusinessAccountId,
+    instagramUsername: selectedPage.instagramUsername ?? null,
+    userAccessToken: session.longLivedUserToken,
+    userAccessTokenExpiresAt: session.longLivedUserTokenExpiresAt ?? null,
+    scopes: sessionMetadata?.scopes ?? [],
     status: "connected",
     metadata: {
       page_tasks: selectedPage.tasks ?? null,
@@ -95,57 +100,37 @@ export async function POST(request: NextRequest) {
       instagram_profile_picture_url: selectedPage.instagramProfilePictureUrl ?? null,
       connected_via_session: session.id,
     },
+    updatedAt: now
   }
 
-  let connectionId: string | null = existingConnection?.id ?? null
+  let connectionId: string
 
   if (existingConnection) {
-    const { error: updateError } = await supabase
-      .from("instagram_connections")
-      .update({
-        ...connectionPayload,
-        connected_at: existingConnection.connected_at,
-      })
-      .eq("id", existingConnection.id)
-
-    if (updateError) {
-      console.error("[instagram][finalize] Failed to update connection", updateError)
-      return NextResponse.json({ error: "Failed to update Instagram connection" }, { status: 500 })
-    }
+    await db.update(instagramConnections)
+      .set(connectionPayload)
+      .where(eq(instagramConnections.id, existingConnection.id))
+    connectionId = existingConnection.id
   } else {
-    const { data: insertedConnection, error: insertError } = await supabase
-      .from("instagram_connections")
-      .insert({
+    const [inserted] = await db.insert(instagramConnections)
+      .values({
         ...connectionPayload,
-        connected_at: nowIso,
+        connectedAt: now
       })
-      .select("id")
-      .single()
-
-    if (insertError || !insertedConnection) {
-      console.error("[instagram][finalize] Failed to create connection", insertError)
-      return NextResponse.json({ error: "Failed to create Instagram connection" }, { status: 500 })
-    }
-
-    connectionId = insertedConnection.id
+      .returning({ id: instagramConnections.id })
+    connectionId = inserted.id
   }
 
-  const { error: consumeError } = await supabase
-    .from("instagram_oauth_sessions")
-    .update({
-      consumed_at: nowIso,
+  await db.update(instagramOAuthSessions)
+    .set({
+      consumedAt: now,
       metadata: {
-        ...(session.metadata ?? {}),
+        ...(sessionMetadata ?? {}),
         selected_page_id: selectedPage.pageId,
         connection_id: connectionId,
       },
+      updatedAt: now
     })
-    .eq("id", session.id)
-
-  if (consumeError) {
-    console.error("[instagram][finalize] Failed to mark session consumed", consumeError)
-    return NextResponse.json({ error: "Failed to finalize Instagram authorization session" }, { status: 500 })
-  }
+    .where(eq(instagramOAuthSessions.id, session.id))
 
   const response = NextResponse.json({ success: true })
   const isProduction = process.env.NODE_ENV === "production"

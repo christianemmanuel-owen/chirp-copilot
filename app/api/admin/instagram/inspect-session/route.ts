@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { getDb } from "@/lib/db"
+import {
+    instagramOAuthSessions
+} from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, and } from "drizzle-orm"
 
-/**
- * Debug endpoint to inspect a specific OAuth session
- * Usage: /api/admin/instagram/inspect-session?id=SESSION_ID
- */
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get("id")
@@ -13,24 +14,22 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             error: "Missing session ID",
             usage: "Add ?id=YOUR_SESSION_ID to this URL",
-            note: "You can get the session ID from the URL after OAuth callback (session=...)",
         }, { status: 400 })
     }
 
     try {
-        const supabase = getSupabaseServiceRoleClient()
-        const { data: session, error } = await supabase
-            .from("instagram_oauth_sessions")
-            .select("*")
-            .eq("id", sessionId)
-            .maybeSingle()
+        const d1 = (process.env as any).DB as D1Database
+        if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
-        if (error) {
-            return NextResponse.json({
-                error: "Failed to fetch session",
-                details: error.message,
-            }, { status: 500 })
-        }
+        const tenantId = await ensureTenantId(request, d1)
+        const db = getDb(d1)
+
+        const session = await db.query.instagramOAuthSessions.findFirst({
+            where: and(
+                eq(instagramOAuthSessions.id, sessionId),
+                eq(instagramOAuthSessions.projectId, tenantId)
+            )
+        })
 
         if (!session) {
             return NextResponse.json({
@@ -41,13 +40,14 @@ export async function GET(request: NextRequest) {
 
         // Analyze the session data
         const pages = Array.isArray(session.pages) ? session.pages : []
+        const metadata = typeof session.metadata === 'string' ? JSON.parse(session.metadata) : session.metadata
         const analysis = {
             sessionId: session.id,
-            createdAt: session.created_at,
-            expiresAt: session.expires_at,
-            consumedAt: session.consumed_at,
-            isExpired: session.expires_at ? new Date(session.expires_at) < new Date() : false,
-            isConsumed: !!session.consumed_at,
+            createdAt: session.createdAt,
+            expiresAt: session.expiresAt,
+            consumedAt: session.consumedAt,
+            isExpired: session.expiresAt ? new Date(session.expiresAt) < new Date() : false,
+            isConsumed: !!session.consumedAt,
             totalPages: pages.length,
             pagesWithInstagram: pages.filter((p: any) => p?.instagramBusinessAccountId).length,
             pages: pages.map((page: any) => ({
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
                 category: page?.category,
                 tasks: page?.tasks,
             })),
-            scopes: session.metadata?.scopes || [],
+            scopes: metadata?.scopes || [],
             diagnosis: {
                 status: pages.length === 0
                     ? "❌ No Facebook Pages found"
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
             "instagram_manage_messages",
             "pages_messaging",
         ]
-        const grantedScopes = session.metadata?.scopes || []
+        const grantedScopes = metadata?.scopes || []
         const missingScopes = requiredScopes.filter(s => !grantedScopes.includes(s))
 
         if (missingScopes.length > 0) {
@@ -108,6 +108,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(analysis, { status: 200 })
 
     } catch (error) {
+        console.error("[instagram][inspect-session] Unexpected error", error)
         return NextResponse.json({
             error: "Unexpected error",
             details: error instanceof Error ? error.message : String(error),

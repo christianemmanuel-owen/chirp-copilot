@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
-import {
-  mapProductRowToProduct,
-  normalizeImageValue,
-  serializeImageList,
-  type ProductRowWithVariants,
-} from "@/lib/supabase/transformers"
-import { PRODUCT_SELECT_FIELDS } from "../../utils"
+import { getDb } from "@/lib/db"
+import { products as productsSchema, productVariants, variantSizes } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, and } from "drizzle-orm"
 import { parseDownPaymentRequest, type DownPaymentRequest } from "./down-payment"
 
 function parseProductId(value: string) {
@@ -19,19 +15,15 @@ function parseProductId(value: string) {
 
 function collectVariantImages(payload: { images?: unknown; image?: unknown }): string[] {
   const sources: Array<string | null | undefined> = []
-
   if (Array.isArray(payload.images)) {
     sources.push(...payload.images)
   }
-
   if (Object.prototype.hasOwnProperty.call(payload, "image")) {
-    sources.push(typeof payload.image === "string" ? payload.image : payload.image === null ? null : undefined)
+    sources.push(typeof payload.image === "string" ? payload.image : (payload.image === null ? null : undefined))
   }
-
-  return Array.from(
-    new Set(sources.map((entry) => normalizeImageValue(entry)).filter((entry): entry is string => Boolean(entry))),
-  )
+  return Array.from(new Set(sources.filter((s): s is string => typeof s === "string" && s.length > 0)))
 }
+
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: idParam } = await context.params
@@ -53,12 +45,28 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: "Missing variant payload" }, { status: 400 })
     }
 
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) {
+      return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
+    }
+
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
+    // Ensure product exists and belongs to project
+    const existingProduct = await db.query.products.findFirst({
+      where: and(eq(productsSchema.id, productId), eq(productsSchema.projectId, tenantId))
+    })
+
+    if (!existingProduct) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
+    }
+
     const variantName = (payload.name ?? "").trim()
     if (!variantName) {
       return NextResponse.json({ error: "Variant name is required" }, { status: 400 })
     }
-    const descriptionText = typeof payload.description === "string" ? payload.description.trim() : ""
-    const variantDescription = descriptionText.length > 0 ? descriptionText : null
+    const variantDescription = typeof payload.description === "string" ? payload.description.trim() : null
 
     const isPreorder = Boolean(payload.isPreorder)
     const downPaymentResult = parseDownPaymentRequest(payload.preorderDownPayment ?? null, isPreorder)
@@ -67,17 +75,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     const preorderDownPayment = downPaymentResult.value
     const isActive = payload?.isActive === undefined ? true : Boolean(payload.isActive)
+
     const rawSizeEntries = Array.isArray(payload.sizes) ? payload.sizes : []
     const normalizedSizeEntries = rawSizeEntries.map((entry) => ({
       size: typeof entry?.size === "string" ? entry.size.trim() : "",
       price: Number(entry?.price),
-      stock:
-        entry?.stock === undefined || entry?.stock === null || (entry as any)?.stock === ""
-          ? isPreorder
-            ? 0
-            : Number.NaN
-          : Number(entry?.stock),
+      stock: entry?.stock === undefined || entry?.stock === null || (entry as any)?.stock === ""
+        ? (isPreorder ? 0 : Number.NaN)
+        : Number(entry?.stock),
     }))
+
     const sizeEntries = normalizedSizeEntries.filter(
       (entry) => Number.isFinite(entry.price) && Number.isFinite(entry.stock),
     )
@@ -86,102 +93,48 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: "At least one size entry with price and stock is required." }, { status: 400 })
     }
 
-    const multipleSizes = sizeEntries.length > 1
-    const invalidEntry = sizeEntries.find(
-      (entry) =>
-        entry.price < 0 ||
-        entry.stock < 0 ||
-        (!isPreorder && !Number.isInteger(entry.stock)) ||
-        (multipleSizes && entry.size.length === 0),
-    )
-
-    if (invalidEntry) {
-      const errorMessage =
-        invalidEntry.price < 0 || !Number.isFinite(invalidEntry.price)
-          ? "Each size entry requires a non-negative price."
-          : !Number.isInteger(invalidEntry.stock) || invalidEntry.stock < 0
-            ? "Each size entry requires a non-negative stock quantity unless the variant is for pre-order."
-            : "Size is required when adding multiple entries."
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
-
-    const preorderMessageRaw =
-      typeof payload.preorderMessage === "string" ? payload.preorderMessage.trim() : ""
-    const preorderMessage = isPreorder && preorderMessageRaw.length > 0 ? preorderMessageRaw : null
-
-    const sanitizedSizeEntries = sizeEntries.map((entry) => ({
-      size: entry.size.length > 0 ? entry.size : null,
-      price: entry.price,
-      stock: isPreorder ? 0 : entry.stock,
-    }))
-
-    const supabase = getSupabaseServiceRoleClient()
-
-    // Ensure product exists
-    const { error: productCheckError } = await supabase.from("products").select("id").eq("id", productId).single()
-    if (productCheckError) {
-      if (productCheckError.code === "PGRST116") {
-        return NextResponse.json({ error: "Product not found" }, { status: 404 })
-      }
-      console.error("[products][variants][POST] Failed to verify product", productCheckError)
-      return NextResponse.json({ error: "Failed to verify product" }, { status: 500 })
-    }
-
     const imageList = collectVariantImages(payload)
-    const insertPayload = {
-      product_id: productId,
-      sku: payload.sku ? payload.sku.trim() : null,
-      color: variantName,
-      description: variantDescription,
-      image_url: serializeImageList(imageList),
-      is_preorder: isPreorder,
-      preorder_down_payment_type: preorderDownPayment.type,
-      preorder_down_payment_value: preorderDownPayment.value,
-      preorder_message: preorderMessage,
-      is_active: isActive,
-    }
+    const imageUrl = imageList.length > 0 ? imageList[0] : null // Using first image as primary
 
-    const { data: insertedRows, error: insertError } = await supabase
-      .from("product_variants")
-      .insert(insertPayload)
-      .select("id")
+    const result = await db.transaction(async (tx) => {
+      const [insertedVariant] = await tx.insert(productVariants).values({
+        productId,
+        sku: payload.sku?.trim() || null,
+        color: variantName,
+        description: variantDescription,
+        imageUrl: imageUrl,
+        isPreorder,
+        isActive,
+        preorderDownPaymentType: preorderDownPayment.type,
+        preorderDownPaymentValue: preorderDownPayment.value,
+        preorderMessage: isPreorder ? (payload.preorderMessage?.trim() || null) : null,
+      }).returning()
 
-    if (insertError || !insertedRows || insertedRows.length === 0) {
-      console.error("[products][variants][POST] Failed to insert variant", insertError)
-      return NextResponse.json({ error: "Failed to create variant" }, { status: 500 })
-    }
+      const sizeInsertPayload = sizeEntries.map(entry => ({
+        variantId: insertedVariant.id,
+        size: entry.size || null,
+        price: entry.price,
+        stockQuantity: isPreorder ? 0 : entry.stock,
+      }))
 
-    const variantId = insertedRows[0].id as number
+      if (sizeInsertPayload.length > 0) {
+        await tx.insert(variantSizes).values(sizeInsertPayload)
+      }
 
-    const sizeInsertPayload = sanitizedSizeEntries.map((entry) => ({
-      variant_id: variantId,
-      size: entry.size,
-      price: entry.price,
-      stock_quantity: entry.stock,
-    }))
+      return insertedVariant.id
+    })
 
-    const { error: sizeInsertError } = await supabase.from("variant_sizes").insert(sizeInsertPayload)
+    // Fetch refreshed product to return
+    const refreshed = await db.query.products.findFirst({
+      where: eq(productsSchema.id, productId),
+      with: {
+        brand: true,
+        productCategories: { with: { category: true } },
+        variants: { with: { sizes: true } }
+      }
+    })
 
-    if (sizeInsertError) {
-      console.error("[products][variants][POST] Failed to insert variant sizes", sizeInsertError)
-      await supabase.from("product_variants").delete().eq("id", variantId)
-      return NextResponse.json({ error: "Failed to create variant sizes" }, { status: 500 })
-    }
-
-    const { data: productRow, error: productError } = await supabase
-      .from("products")
-      .select(PRODUCT_SELECT_FIELDS)
-      .eq("id", productId)
-      .single()
-
-    if (productError || !productRow) {
-      console.error("[products][variants][POST] Failed to load product after insert", productError)
-      return NextResponse.json({ error: "Variant created but failed to refresh product" }, { status: 500 })
-    }
-
-    const product = mapProductRowToProduct(productRow as ProductRowWithVariants)
-
-    return NextResponse.json({ data: product }, { status: 201 })
+    return NextResponse.json({ data: refreshed }, { status: 201 })
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid product id") {
       return NextResponse.json({ error: error.message }, { status: 400 })

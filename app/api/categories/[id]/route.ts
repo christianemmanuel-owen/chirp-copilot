@@ -1,5 +1,8 @@
-import { NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { NextRequest, NextResponse } from "next/server"
+import { getDb } from "@/lib/db"
+import { categories } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, and } from "drizzle-orm"
 
 function parseId(value: string) {
   const numeric = Number(value)
@@ -15,7 +18,7 @@ function normalizeName(value: unknown): string {
   return trimmed.length > 0 ? trimmed : ""
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: idParam } = await context.params
     const id = parseId(idParam)
@@ -26,26 +29,42 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "Category name is required" }, { status: 400 })
     }
 
-    const supabase = getSupabaseServiceRoleClient()
-    const { data, error } = await supabase
-      .from("categories")
-      .update({ name, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .select("id, name")
-      .single()
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
-    if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json({ error: "Category not found" }, { status: 404 })
-      }
-      if (error.code === "23505") {
-        return NextResponse.json({ error: "Category name already exists" }, { status: 409 })
-      }
-      console.error("[categories][PATCH] Supabase error", error)
-      return NextResponse.json({ error: "Failed to update category" }, { status: 500 })
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
+    // Check if category exists and belongs to this project
+    const existing = await db.query.categories.findFirst({
+      where: and(
+        eq(categories.id, id),
+        eq(categories.projectId, tenantId)
+      )
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: "Category not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ data })
+    // Check for collision
+    const collision = await db.query.categories.findFirst({
+      where: and(
+        eq(categories.name, name),
+        eq(categories.projectId, tenantId)
+      )
+    })
+
+    if (collision && collision.id !== id) {
+      return NextResponse.json({ error: "Category name already exists" }, { status: 409 })
+    }
+
+    const [updated] = await db.update(categories)
+      .set({ name, updatedAt: new Date() })
+      .where(and(eq(categories.id, id), eq(categories.projectId, tenantId)))
+      .returning()
+
+    return NextResponse.json({ data: updated })
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid category id") {
       return NextResponse.json({ error: error.message }, { status: 400 })
@@ -55,17 +74,23 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 }
 
-export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: idParam } = await context.params
     const id = parseId(idParam)
 
-    const supabase = getSupabaseServiceRoleClient()
-    const { error } = await supabase.from("categories").delete().eq("id", id)
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
-    if (error) {
-      console.error("[categories][DELETE] Supabase error", error)
-      return NextResponse.json({ error: "Failed to delete category" }, { status: 500 })
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
+    const result = await db.delete(categories)
+      .where(and(eq(categories.id, id), eq(categories.projectId, tenantId)))
+      .returning()
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Category not found" }, { status: 404 })
     }
 
     return NextResponse.json({ success: true })

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
 import { randomUUID } from "crypto"
 
 const BUCKET_MAP = {
@@ -40,66 +39,41 @@ export async function POST(request: Request, context: { params: Promise<{ catego
       return NextResponse.json({ error: "Missing file in upload payload" }, { status: 400 })
     }
 
-    const supabase = getSupabaseServiceRoleClient()
-    const bucket = BUCKET_MAP[categoryParam]
+    // In Cloudflare, R2 bindings are on process.env in NextCloudflarePages
+    const bucket = (process.env as any).BUCKET as R2Bucket
+    if (!bucket) {
+      return NextResponse.json({ error: "R2 Bucket binding not found" }, { status: 500 })
+    }
 
-    await ensureBucketExists(supabase, bucket)
-
-    const prefix =
-      sanitizeSegment(formData.get("prefix")?.toString() ?? null) ?? categoryParam
+    const prefix = sanitizeSegment(formData.get("prefix")?.toString() ?? null) ?? categoryParam
     const extensionFromName = file.name?.split(".").pop()
     const fallbackExtension = file.type?.split("/").pop()
     const extension = (extensionFromName || fallbackExtension || "bin").toLowerCase()
+
+    // We keep the prefix structure but put it in the R2 bucket
     const objectPath = `${prefix}/${Date.now()}-${randomUUID()}.${extension}`
 
     const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
 
-    const { error: uploadError } = await supabase.storage.from(bucket).upload(objectPath, buffer, {
-      contentType: file.type || "application/octet-stream",
-      upsert: true,
+    // Put object into R2
+    await bucket.put(objectPath, arrayBuffer, {
+      httpMetadata: {
+        contentType: file.type || "application/octet-stream",
+      },
+      customMetadata: {
+        originalName: file.name,
+        category: categoryParam,
+      }
     })
 
-    if (uploadError) {
-      console.error(`[uploads][${categoryParam}] Supabase storage error`, uploadError)
-      return NextResponse.json({ error: "Failed to store file" }, { status: 500 })
-    }
-
-    const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(objectPath)
-    const publicUrl = publicUrlData.publicUrl
+    // Construct the public URL
+    // Note: You must configure a custom domain or public access for the R2 bucket
+    const publicBaseUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "https://assets.chirp.com"
+    const publicUrl = `${publicBaseUrl}/${objectPath}`
 
     return NextResponse.json({ url: publicUrl, path: objectPath })
   } catch (error) {
     console.error("[uploads] Unexpected error", error)
     return NextResponse.json({ error: "Unexpected error during file upload" }, { status: 500 })
-  }
-}
-
-async function ensureBucketExists(
-  supabase: ReturnType<typeof getSupabaseServiceRoleClient>,
-  bucket: string,
-) {
-  const { data, error } = await supabase.storage.getBucket(bucket)
-
-  if (data) {
-    return
-  }
-
-  if (error) {
-    const status = (error as any)?.statusCode ?? (error as any)?.status
-    if (status !== "404" && status !== 404) {
-      throw error
-    }
-  }
-
-  const { error: createError } = await supabase.storage.createBucket(bucket, {
-    public: true,
-  })
-
-  if (createError) {
-    const status = (createError as any)?.statusCode ?? (createError as any)?.status
-    if (status !== "409" && status !== 409) {
-      throw createError
-    }
   }
 }

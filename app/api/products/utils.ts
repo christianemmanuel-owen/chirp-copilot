@@ -1,12 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js"
-
-import type { Database } from "@/lib/supabase/types"
+import { eq, and, inArray, sql } from "drizzle-orm"
+import { brands, categories } from "@/lib/db/schema"
+import type { DbClient } from "@/lib/db"
 import type { ProductBrandInput, ProductCategoryInput } from "@/lib/types"
-
-export const PRODUCT_SELECT_FIELDS =
-  "*, brand:brands(*), product_categories(category:categories(*)), product_variants(*, variant_sizes(*))"
-
-type ServiceSupabaseClient = SupabaseClient<Database>
 
 export function normalizeLabel(value: string | null | undefined): string {
   if (typeof value !== "string") return ""
@@ -15,7 +10,8 @@ export function normalizeLabel(value: string | null | undefined): string {
 }
 
 export async function resolveBrandId(
-  supabase: ServiceSupabaseClient,
+  db: DbClient,
+  projectId: string,
   input: ProductBrandInput | null | undefined,
 ): Promise<number | null> {
   if (input === null || input === undefined) {
@@ -31,14 +27,16 @@ export async function resolveBrandId(
     return null
   }
 
-  const { data, error } = await supabase
-    .from("brands")
-    .upsert({ name }, { onConflict: "name" })
-    .select("id")
-    .single()
+  // Drizzle upsert for Brands
+  const [data] = await db.insert(brands)
+    .values({ name, projectId })
+    .onConflictDoUpdate({
+      target: [brands.projectId, brands.name],
+      set: { name } // No-op update to get the ID back
+    })
+    .returning({ id: brands.id })
 
-  if (error || !data) {
-    console.error("[products][resolveBrandId] Failed to upsert brand", error)
+  if (!data) {
     throw new Error("Failed to resolve brand")
   }
 
@@ -46,7 +44,8 @@ export async function resolveBrandId(
 }
 
 export async function resolveCategoryIds(
-  supabase: ServiceSupabaseClient,
+  db: DbClient,
+  projectId: string,
   inputs: ProductCategoryInput[] | null | undefined,
 ): Promise<number[]> {
   if (!inputs || inputs.length === 0) {
@@ -73,24 +72,21 @@ export async function resolveCategoryIds(
   }
 
   if (newNames.length > 0) {
-    const { data, error } = await supabase
-      .from("categories")
-      .upsert(
-        newNames.map((name) => ({ name })),
-        { onConflict: "name" },
-      )
-      .select("id, name")
+    // Drizzle upsert for Categories
+    const data = await db.insert(categories)
+      .values(newNames.map(name => ({ name, projectId })))
+      .onConflictDoUpdate({
+        target: [categories.projectId, categories.name],
+        set: { name: sql`EXCLUDED.name` }
+      })
+      .returning({ id: categories.id })
 
-    if (error || !data) {
-      console.error("[products][resolveCategoryIds] Failed to upsert categories", error)
+    if (!data) {
       throw new Error("Failed to resolve categories")
     }
 
     for (const category of data) {
-      if (!category) continue
-      if (typeof category.id === "number" && Number.isFinite(category.id)) {
-        uniqueIds.add(category.id)
-      }
+      uniqueIds.add(category.id)
     }
   }
 

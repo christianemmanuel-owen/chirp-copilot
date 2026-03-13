@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
-import { mapOrderInputToInsert, mapOrderRowToOrder } from "@/lib/supabase/transformers"
+import { getDb } from "@/lib/db"
+import { orders as ordersSchema, storefrontSettings } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, desc, and } from "drizzle-orm"
 import type { FulfillmentMethod, NewOrderInput } from "@/lib/types"
 import { generateOrderId } from "@/lib/utils"
 import { calculateShippingFee, type ShippingFeeConfig } from "../../../lib/shipping"
@@ -92,22 +94,21 @@ export async function GET(request: Request) {
     const limitParam = searchParams.get("limit")
     const limit = limitParam ? parseInt(limitParam, 10) : 200
 
-    const supabase = getSupabaseServiceRoleClient()
-    let query = supabase.from("orders").select("*").order("created_at", { ascending: false })
-
-    if (!isNaN(limit)) {
-      query = query.limit(limit)
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) {
+      return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }
 
-    const { data, error } = await query
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
 
-    if (error) {
-      console.error("[orders][GET] Supabase error", error)
-      return NextResponse.json({ error: "Failed to load orders" }, { status: 500 })
-    }
+    const data = await db.select()
+      .from(ordersSchema)
+      .where(eq(ordersSchema.projectId, tenantId))
+      .orderBy(desc(ordersSchema.createdAt))
+      .limit(isNaN(limit) ? 200 : limit)
 
-    const orders = (data ?? []).map(mapOrderRowToOrder)
-    return NextResponse.json({ data: orders })
+    return NextResponse.json({ data })
   } catch (error) {
     console.error("[orders][GET] Unexpected error", error)
     return NextResponse.json({ error: "Unexpected error retrieving orders" }, { status: 500 })
@@ -123,7 +124,15 @@ export async function POST(request: Request) {
     }
 
     const { captchaToken, ...payload } = rawPayload
-    const supabase = getSupabaseServiceRoleClient()
+
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) {
+      return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
+    }
+
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
     const cookieStore = await cookies()
     const isAdminRequest = cookieStore.get("admin_auth")?.value === "1"
     const clientIp = isAdminRequest ? null : getClientIp(request)
@@ -154,31 +163,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Missing customer fields: ${missingPersonal.join(", ")}` }, { status: 400 })
     }
 
-    const fulfillmentMethod: FulfillmentMethod =
-      payload.fulfillmentMethod === "pickup" ? "pickup" : "delivery"
+    const fulfillmentMethod: FulfillmentMethod = payload.fulfillmentMethod === "pickup" ? "pickup" : "delivery"
 
-    const requiredDelivery = ["street", "city", "region", "zipCode", "country"] as const
     if (fulfillmentMethod === "delivery") {
+      const requiredDelivery = ["street", "city", "region", "zipCode", "country"] as const
       const missingDelivery = requiredDelivery.filter((field) => !payload.delivery?.[field])
       if (missingDelivery.length > 0) {
-        return NextResponse.json(
-          { error: `Missing delivery fields: ${missingDelivery.join(", ")}` },
-          { status: 400 },
-        )
+        return NextResponse.json({ error: `Missing delivery fields: ${missingDelivery.join(", ")}` }, { status: 400 })
       }
     }
 
     let pickupRequest: { scheduledDate: string; scheduledTime: string } | null = null
     if (fulfillmentMethod === "pickup") {
-      const scheduledDate =
-        typeof payload.pickup?.scheduledDate === "string" ? payload.pickup.scheduledDate.trim() : ""
-      const scheduledTime =
-        typeof payload.pickup?.scheduledTime === "string" ? payload.pickup.scheduledTime.trim() : ""
+      const scheduledDate = typeof payload.pickup?.scheduledDate === "string" ? payload.pickup.scheduledDate.trim() : ""
+      const scheduledTime = typeof payload.pickup?.scheduledTime === "string" ? payload.pickup.scheduledTime.trim() : ""
       if (!scheduledDate || !scheduledTime) {
-        return NextResponse.json(
-          { error: "Pickup date and time are required for pickup orders" },
-          { status: 400 },
-        )
+        return NextResponse.json({ error: "Pickup date and time are required for pickup orders" }, { status: 400 })
       }
       pickupRequest = { scheduledDate, scheduledTime }
     }
@@ -191,167 +191,73 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Payment method is required" }, { status: 400 })
     }
 
+    // Load storefront settings for shipping/pickup
+    const settings = await db.query.storefrontSettings.findFirst({
+      where: eq(storefrontSettings.projectId, tenantId)
+    })
+
     let shippingConfig: ShippingFeeConfig | undefined
-    let pickupGloballyEnabled = true
-    let pickupLocationSettings:
-      | {
-        name: string | null
-        unit: string | null
-        lot: string | null
-        street: string
-        city: string
-        region: string
-        zipCode: string
-        country: string
-        notes: string | null
+    let pickupGloballyEnabled = false
+    let pickupLocationSettings: any = null
+
+    if (settings) {
+      shippingConfig = {
+        baseFee: settings.shippingDefaultFee,
+        regionOverrides: (settings.shippingRegionOverrides as any) || {},
       }
-      | null = null
-    try {
-      const { data: shippingSettings, error: shippingError } = await supabase
-        .from("storefront_settings")
-        .select(
-          "shipping_default_fee, shipping_region_overrides, pickup_enabled, pickup_location_name, pickup_location_unit, pickup_location_lot, pickup_location_street, pickup_location_city, pickup_location_region, pickup_location_zip_code, pickup_location_country, pickup_location_notes",
-        )
-        .eq("id", 1)
-        .maybeSingle()
+      pickupGloballyEnabled = settings.pickupEnabled
 
-      if (shippingError) {
-        console.error("[orders][POST] Failed to load shipping settings", shippingError)
-      } else if (shippingSettings) {
-        const overrides =
-          shippingSettings.shipping_region_overrides &&
-            typeof shippingSettings.shipping_region_overrides === "object" &&
-            !Array.isArray(shippingSettings.shipping_region_overrides)
-            ? (shippingSettings.shipping_region_overrides as Record<string, number>)
-            : undefined
-
-        shippingConfig = {
-          baseFee:
-            typeof shippingSettings.shipping_default_fee === "number"
-              ? Number(shippingSettings.shipping_default_fee)
-              : undefined,
-          regionOverrides: overrides,
-        }
-
-        if (typeof shippingSettings.pickup_enabled === "boolean") {
-          pickupGloballyEnabled = shippingSettings.pickup_enabled
-        }
-
-        if (
-          pickupGloballyEnabled &&
-          typeof shippingSettings.pickup_location_street === "string" &&
-          typeof shippingSettings.pickup_location_city === "string" &&
-          typeof shippingSettings.pickup_location_region === "string" &&
-          typeof shippingSettings.pickup_location_zip_code === "string"
-        ) {
-          pickupLocationSettings = {
-            name: typeof shippingSettings.pickup_location_name === "string" ? shippingSettings.pickup_location_name : null,
-            unit: typeof shippingSettings.pickup_location_unit === "string" ? shippingSettings.pickup_location_unit : null,
-            lot: typeof shippingSettings.pickup_location_lot === "string" ? shippingSettings.pickup_location_lot : null,
-            street: shippingSettings.pickup_location_street,
-            city: shippingSettings.pickup_location_city,
-            region: shippingSettings.pickup_location_region,
-            zipCode: shippingSettings.pickup_location_zip_code,
-            country:
-              typeof shippingSettings.pickup_location_country === "string"
-                ? shippingSettings.pickup_location_country
-                : "Philippines",
-            notes:
-              typeof shippingSettings.pickup_location_notes === "string" ? shippingSettings.pickup_location_notes : null,
-          }
+      if (pickupGloballyEnabled && settings.pickupLocationStreet && settings.pickupLocationCity) {
+        pickupLocationSettings = {
+          name: settings.pickupLocationName,
+          unit: settings.pickupLocationUnit,
+          lot: settings.pickupLocationLot,
+          street: settings.pickupLocationStreet,
+          city: settings.pickupLocationCity,
+          region: settings.pickupLocationRegion,
+          zipCode: settings.pickupLocationZipCode,
+          country: settings.pickupLocationCountry || "Philippines",
+          notes: settings.pickupLocationNotes,
         }
       }
-    } catch (settingsError) {
-      console.error("[orders][POST] Unexpected error while retrieving shipping settings", settingsError)
     }
 
     if (fulfillmentMethod === "pickup" && !pickupGloballyEnabled) {
-      return NextResponse.json(
-        { error: "Pickup is currently unavailable. Please choose delivery." },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: "Pickup is currently unavailable. Please choose delivery." }, { status: 400 })
     }
 
     if (fulfillmentMethod === "pickup" && !pickupLocationSettings) {
-      return NextResponse.json(
-        { error: "Pickup location is not configured. Please contact the store." },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: "Pickup location is not configured. Please contact the store." }, { status: 400 })
     }
 
-    const shippingFee =
-      fulfillmentMethod === "pickup" ? 0 : calculateShippingFee(payload.delivery?.region, shippingConfig)
+    const shippingFee = fulfillmentMethod === "pickup" ? 0 : calculateShippingFee(payload.delivery?.region, shippingConfig)
     const total = Number((payload.subtotal + payload.vat + shippingFee).toFixed(2))
 
-    const deliveryDetails =
-      fulfillmentMethod === "pickup" && pickupLocationSettings
-        ? {
-          unit: pickupLocationSettings.unit ?? "",
-          lot: pickupLocationSettings.lot ?? "",
-          street: pickupLocationSettings.street,
-          city: pickupLocationSettings.city,
-          region: pickupLocationSettings.region,
-          zipCode: pickupLocationSettings.zipCode,
-          country: pickupLocationSettings.country,
-        }
-        : {
-          unit: payload.delivery?.unit ?? "",
-          lot: payload.delivery?.lot ?? "",
-          street: payload.delivery?.street ?? "",
-          city: payload.delivery?.city ?? "",
-          region: payload.delivery?.region ?? "",
-          zipCode: payload.delivery?.zipCode ?? "",
-          country: payload.delivery?.country ?? "",
-        }
+    const orderId = generateOrderId()
 
-    const pickupDetails =
-      fulfillmentMethod === "pickup" && pickupLocationSettings && pickupRequest
-        ? {
-          locationName: pickupLocationSettings.name ?? pickupLocationSettings.street,
-          unit: pickupLocationSettings.unit ?? "",
-          lot: pickupLocationSettings.lot ?? "",
-          street: pickupLocationSettings.street,
-          city: pickupLocationSettings.city,
-          region: pickupLocationSettings.region,
-          zipCode: pickupLocationSettings.zipCode,
-          country: pickupLocationSettings.country,
-          notes: pickupLocationSettings.notes ?? "",
-          scheduledDate: pickupRequest.scheduledDate,
-          scheduledTime: pickupRequest.scheduledTime,
-        }
-        : null
-
-    const normalizedHandle =
-      typeof payload.customer?.instagramHandle === "string"
-        ? payload.customer.instagramHandle.trim() || null
-        : null
-
-    const normalizedPayload: NewOrderInput = {
-      ...payload,
-      customer: {
-        ...payload.customer,
-        instagramHandle: normalizedHandle,
-      },
-      delivery: deliveryDetails,
+    const [newOrder] = await db.insert(ordersSchema).values({
+      id: orderId,
+      projectId: tenantId,
+      paymentMethod: payload.paymentMethod,
+      proofOfPaymentUrl: payload.proofOfPayment,
+      customerFirstName: payload.customer.firstName,
+      customerLastName: payload.customer.lastName,
+      customerPhone: payload.customer.phone,
+      customerEmail: payload.customer.email,
+      instagramHandle: payload.customer.instagramHandle?.trim() || null,
+      deliveryStreet: fulfillmentMethod === "pickup" ? pickupLocationSettings.street : payload.delivery?.street,
+      deliveryCity: fulfillmentMethod === "pickup" ? pickupLocationSettings.city : payload.delivery?.city,
+      deliveryRegion: fulfillmentMethod === "pickup" ? pickupLocationSettings.region : payload.delivery?.region,
+      deliveryZipCode: fulfillmentMethod === "pickup" ? pickupLocationSettings.zipCode : payload.delivery?.zipCode,
+      deliveryCountry: (fulfillmentMethod === "pickup" ? pickupLocationSettings.country : payload.delivery?.country) || "Philippines",
       fulfillmentMethod,
-      pickup: pickupDetails,
-      trackingId: payload.trackingId && payload.trackingId.trim().length > 0 ? payload.trackingId.trim() : null,
-      shippingFee,
-      total,
-    }
+      orderItems: JSON.stringify(payload.items),
+      subtotal: payload.subtotal,
+      total: total,
+      status: "For Evaluation",
+    }).returning()
 
-    const id = generateOrderId()
-    const insertPayload = mapOrderInputToInsert(id, normalizedPayload)
-
-    const { data, error } = await supabase.from("orders").insert(insertPayload).select().single()
-
-    if (error) {
-      console.error("[orders][POST] Supabase error", error)
-      return NextResponse.json({ error: "Failed to create order" }, { status: 500 })
-    }
-
-    const order = mapOrderRowToOrder(data)
-    return NextResponse.json({ data: order }, { status: 201 })
+    return NextResponse.json({ data: newOrder }, { status: 201 })
   } catch (error) {
     console.error("[orders][POST] Unexpected error", error)
     return NextResponse.json({ error: "Unexpected error creating order" }, { status: 500 })

@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
-import {
-  mapPaymentMethodInputToInsert,
-  mapPaymentMethodRow,
-} from "@/lib/supabase/transformers"
+import { NextRequest, NextResponse } from "next/server"
+import { getDb } from "@/lib/db"
+import { paymentMethods as paymentMethodsSchema } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, and } from "drizzle-orm"
 import {
   getPaymentMethodCatalogEntry,
   isSupportedPaymentProvider,
@@ -19,8 +18,14 @@ function normalizeUrl(value: string) {
   return value.trim()
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
+
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
     const url = new URL(request.url)
     const scope = url.searchParams.get("scope") ?? ""
     const includeInactive =
@@ -28,25 +33,29 @@ export async function GET(request: Request) {
       url.searchParams.get("includeInactive") === "true" ||
       url.searchParams.get("all") === "true"
 
-    const supabase = getSupabaseServiceRoleClient()
-    let query = supabase.from("payment_methods").select("*").order("created_at", { ascending: true })
+    const records = await db.query.paymentMethods.findMany({
+      where: and(
+        eq(paymentMethodsSchema.projectId, tenantId),
+        includeInactive ? undefined : eq(paymentMethodsSchema.isActive, true)
+      ),
+      orderBy: (pm, { asc }) => [asc(pm.createdAt)]
+    })
 
-    if (!includeInactive) {
-      query = query.eq("is_active", true)
-    }
+    const transformedRecords = records.map(r => ({
+      id: r.id,
+      provider: r.provider,
+      accountName: r.accountName,
+      instructions: r.instructions,
+      qrCodeUrl: r.qrCodeUrl,
+      isActive: r.isActive,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt
+    }))
 
-    const { data, error } = await query
-
-    if (error) {
-      console.error("[payment-methods][GET] Supabase error", error)
-      return NextResponse.json({ error: "Failed to load payment methods" }, { status: 500 })
-    }
-
-    const records = (data ?? []).map(mapPaymentMethodRow)
-    const responsePayload: Record<string, unknown> = { data: records }
+    const responsePayload: Record<string, unknown> = { data: transformedRecords }
 
     if (scope === "admin") {
-      const usedProviders = new Set(records.map((entry) => entry.provider))
+      const usedProviders = new Set(transformedRecords.map((entry) => entry.provider))
       responsePayload.availableProviders = PAYMENT_METHOD_CATALOG.filter((entry) => !usedProviders.has(entry.id))
     }
 
@@ -57,8 +66,14 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
+
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
     const payload = (await request.json()) as Partial<NewPaymentMethodInput> | null
 
     if (!payload) {
@@ -66,17 +81,13 @@ export async function POST(request: Request) {
     }
 
     const provider = typeof payload.provider === "string" ? normalizeProvider(payload.provider) : ""
-    let qrCodeUrl: string | null = null
-    if (payload.qrCodeUrl === null) {
-      qrCodeUrl = null
-    } else if (typeof payload.qrCodeUrl === "string") {
-      const normalized = normalizeUrl(payload.qrCodeUrl)
-      qrCodeUrl = normalized.length > 0 ? normalized : null
+    let qrCodeUrl: string = ""
+    if (typeof payload.qrCodeUrl === "string") {
+      qrCodeUrl = normalizeUrl(payload.qrCodeUrl)
     }
-    const accountName = typeof payload.accountName === "string" ? payload.accountName : undefined
-    const instructions = typeof payload.instructions === "string" ? payload.instructions : undefined
-    const isActive =
-      payload.isActive === undefined ? true : typeof payload.isActive === "boolean" ? payload.isActive : Boolean(payload.isActive)
+    const accountName = typeof payload.accountName === "string" ? payload.accountName : null
+    const instructions = typeof payload.instructions === "string" ? payload.instructions : null
+    const isActive = payload.isActive === undefined ? true : !!payload.isActive
 
     if (!provider) {
       return NextResponse.json({ error: "Payment provider is required" }, { status: 400 })
@@ -86,44 +97,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unsupported payment provider" }, { status: 400 })
     }
 
-    if (!getPaymentMethodCatalogEntry(provider)) {
-      return NextResponse.json({ error: "Unsupported payment provider" }, { status: 400 })
-    }
+    const existing = await db.query.paymentMethods.findFirst({
+      where: and(
+        eq(paymentMethodsSchema.projectId, tenantId),
+        eq(paymentMethodsSchema.provider, provider)
+      )
+    })
 
-    const supabase = getSupabaseServiceRoleClient()
-
-    const { data: existingRows, error: existingError } = await supabase
-      .from("payment_methods")
-      .select("id")
-      .eq("provider", provider)
-      .limit(1)
-
-    if (existingError) {
-      console.error("[payment-methods][POST] Failed to check existing provider", existingError)
-      return NextResponse.json({ error: "Failed to create payment method" }, { status: 500 })
-    }
-
-    if (existingRows && existingRows.length > 0) {
+    if (existing) {
       return NextResponse.json({ error: "Payment provider already configured" }, { status: 409 })
     }
 
-    const insertPayload = mapPaymentMethodInputToInsert({
+    const [inserted] = await db.insert(paymentMethodsSchema).values({
+      projectId: tenantId,
       provider,
       qrCodeUrl,
       accountName,
       instructions,
-      isActive,
-    })
+      isActive
+    }).returning()
 
-    const { data, error } = await supabase.from("payment_methods").insert(insertPayload).select().single()
-
-    if (error) {
-      console.error("[payment-methods][POST] Supabase error", error)
-      return NextResponse.json({ error: "Failed to create payment method" }, { status: 500 })
-    }
-
-    const record = mapPaymentMethodRow(data)
-    return NextResponse.json({ data: record }, { status: 201 })
+    return NextResponse.json({ data: inserted }, { status: 201 })
   } catch (error) {
     console.error("[payment-methods][POST] Unexpected error", error)
     return NextResponse.json({ error: "Unexpected error creating payment method" }, { status: 500 })

@@ -10,11 +10,11 @@ import AdminExperimentalSettings from "@/components/AdminExperimentalSettings"
 import SettingsSidebar from "./_components/SettingsSidebar"
 // Refreshing import
 
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
-import type { Database } from "@/lib/supabase/types"
-
-type InstagramConnectionRow = Database["public"]["Tables"]["instagram_connections"]["Row"]
-type InstagramOAuthSessionRow = Database["public"]["Tables"]["instagram_oauth_sessions"]["Row"]
+import { getDb } from "@/lib/db"
+import { instagramConnections, instagramOAuthSessions } from "@/lib/db/schema"
+import { ensureTenantIdFromHeaders } from "@/lib/db/tenant"
+import { and, eq, desc } from "drizzle-orm"
+import { headers } from "next/headers"
 
 export const metadata: Metadata = {
   title: "Settings | Chirp Admin",
@@ -33,41 +33,38 @@ export default async function AdminSettingsPage({
   searchParams: Promise<SettingsSearchParams>
 }) {
   const params = await searchParams
-  const supabase = getSupabaseServiceRoleClient()
+  const d1 = (process.env as any).DB as D1Database
+  const head = await headers()
+  const tenantId = await ensureTenantIdFromHeaders(head, d1)
+  const db = getDb(d1)
 
-  let activeConnection: InstagramConnectionRow | null = null
-  let pendingSession: InstagramOAuthSessionRow | null = null
+  let activeConnection: any = null
+  let pendingSession: any = null
 
   try {
-    const { data: connections, error } = await supabase
-      .from("instagram_connections")
-      .select("*")
-      .order("connected_at", { ascending: false })
-
-    if (error) {
-      console.error("[settings] Failed to load Instagram connections", error)
-    } else if (connections && connections.length > 0) {
-      activeConnection = connections[0]
-    }
+    const connection = await db.query.instagramConnections.findFirst({
+      where: eq(instagramConnections.projectId, tenantId),
+      orderBy: [desc(instagramConnections.connectedAt)]
+    })
+    activeConnection = connection ?? null
   } catch (error) {
-    console.error("[settings] Unexpected error while fetching Instagram connections", error)
+    console.error("[settings] Failed to load Instagram connections", error)
   }
 
   if (params.session) {
     try {
-      const { data: session, error } = await supabase
-        .from("instagram_oauth_sessions")
-        .select("*")
-        .eq("id", params.session)
-        .maybeSingle()
+      const session = await db.query.instagramOAuthSessions.findFirst({
+        where: and(
+          eq(instagramOAuthSessions.id, params.session),
+          eq(instagramOAuthSessions.projectId, tenantId)
+        )
+      })
 
-      if (error) {
-        console.error("[settings] Failed to load Instagram OAuth session", error)
-      } else if (session && !session.consumed_at && (!session.expires_at || new Date(session.expires_at) > new Date())) {
+      if (session && !session.consumedAt && (!session.expiresAt || new Date(session.expiresAt) > new Date())) {
         pendingSession = session
       }
     } catch (error) {
-      console.error("[settings] Unexpected error while fetching Instagram OAuth session", error)
+      console.error("[settings] Failed to load Instagram OAuth session", error)
     }
   }
 

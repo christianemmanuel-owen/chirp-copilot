@@ -1,25 +1,15 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
-import { mapDiscountCampaignRow, type DiscountCampaignRowWithVariants } from "@/lib/supabase/transformers"
-
-const DISCOUNT_CAMPAIGN_SELECT = `
-  *,
-  discount_campaign_variants (
-    id,
-    campaign_id,
-    variant_id,
-    discount_percent,
-    created_at,
-    updated_at,
-    variant:product_variants (
-      *,
-      product:products(*),
-      variant_sizes(*)
-    )
-  )
-`
+import { getDb } from "@/lib/db"
+import {
+  discountCampaigns,
+  discountCampaignVariants,
+  productVariants,
+  products,
+  variantSizes
+} from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, and, inArray, desc } from "drizzle-orm"
 
 const dateStringSchema = z
   .string()
@@ -42,31 +32,69 @@ const createDiscountSchema = z.object({
   variants: z.array(discountVariantSchema).min(1, "Select at least one variant"),
 })
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = getSupabaseServiceRoleClient()
-    const { data, error } = await supabase
-      .from("discount_campaigns")
-      .select(DISCOUNT_CAMPAIGN_SELECT)
-      .order("start_date", { ascending: false })
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
-    if (error) {
-      console.error("[discounts][GET] Supabase error", error)
-      return NextResponse.json({ error: "Failed to load discount campaigns" }, { status: 500 })
-    }
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
 
-    const campaigns =
-      (data as DiscountCampaignRowWithVariants[] | null)?.map((row) => mapDiscountCampaignRow(row)) ?? []
+    const data = await db.query.discountCampaigns.findMany({
+      where: eq(discountCampaigns.projectId, tenantId),
+      orderBy: [desc(discountCampaigns.startDate)],
+      with: {
+        variants: {
+          with: {
+            variant: {
+              with: {
+                product: true,
+                sizes: true
+              }
+            }
+          }
+        }
+      }
+    })
 
-    return NextResponse.json({ data: campaigns })
+    const transformed = data.map(campaign => ({
+      id: campaign.id,
+      name: campaign.name,
+      description: campaign.description,
+      bannerImageUrl: campaign.bannerImageUrl,
+      startDate: campaign.startDate.toISOString().split('T')[0],
+      endDate: campaign.endDate.toISOString().split('T')[0],
+      isActive: campaign.isActive,
+      createdAt: campaign.createdAt,
+      updatedAt: campaign.updatedAt,
+      discount_campaign_variants: campaign.variants.map(v => ({
+        id: v.id,
+        campaign_id: v.campaignId,
+        variant_id: v.variantId,
+        discount_percent: v.discountPercent,
+        variant: {
+          ...v.variant,
+          product: v.variant.product,
+          variant_sizes: v.variant.sizes
+        }
+      }))
+    }))
+
+    return NextResponse.json({ data: transformed })
   } catch (error) {
     console.error("[discounts][GET] Unexpected error", error)
-    return NextResponse.json({ error: "Unexpected error retrieving discount campaigns" }, { status: 500 })
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 })
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
+
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
     const payload = await request.json().catch(() => null)
     const parsed = createDiscountSchema.safeParse(payload)
 
@@ -75,96 +103,91 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: message }, { status: 400 })
     }
 
-    const data = parsed.data
-    const startDate = new Date(`${data.startDate}T00:00:00Z`)
-    const endDate = new Date(`${data.endDate}T00:00:00Z`)
-
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      return NextResponse.json({ error: "Invalid campaign dates" }, { status: 400 })
-    }
+    const { name, description, bannerImageUrl, startDate: sStr, endDate: eStr, isActive, variants } = parsed.data
+    const startDate = new Date(`${sStr}T00:00:00Z`)
+    const endDate = new Date(`${eStr}T00:00:00Z`)
 
     if (endDate < startDate) {
       return NextResponse.json({ error: "End date must be on or after the start date" }, { status: 400 })
     }
 
-    const uniqueVariantIds = new Set<number>()
-    for (const variant of data.variants) {
-      if (uniqueVariantIds.has(variant.variantId)) {
-        return NextResponse.json({ error: "Each variant can only be discounted once per campaign" }, { status: 400 })
-      }
-      uniqueVariantIds.add(variant.variantId)
+    const variantIds = variants.map(v => v.variantId)
+    const uniqueVariantIds = Array.from(new Set(variantIds))
+    if (uniqueVariantIds.length !== variantIds.length) {
+      return NextResponse.json({ error: "Duplicates in variants" }, { status: 400 })
     }
 
-    const supabase = getSupabaseServiceRoleClient()
-
-    const variantIdList = Array.from(uniqueVariantIds)
-    const { data: existingVariants, error: variantLookupError } = await supabase
-      .from("product_variants")
-      .select("id")
-      .in("id", variantIdList)
-
-    if (variantLookupError) {
-      console.error("[discounts][POST] Variant validation failed", variantLookupError)
-      return NextResponse.json({ error: "Failed to validate variants" }, { status: 500 })
-    }
-
-    if ((existingVariants ?? []).length !== variantIdList.length) {
-      return NextResponse.json({ error: "One or more product variants could not be found" }, { status: 400 })
-    }
-
-    const normalizedBannerImageUrl =
-      data.bannerImageUrl && data.bannerImageUrl.length > 0 ? data.bannerImageUrl : null
-
-    const { data: createdCampaign, error: campaignError } = await supabase
-      .from("discount_campaigns")
-      .insert({
-        name: data.name,
-        description: data.description && data.description.length > 0 ? data.description : null,
-        banner_image_url: normalizedBannerImageUrl,
-        start_date: data.startDate,
-        end_date: data.endDate,
-        is_active: data.isActive ?? true,
-      })
-      .select("*")
-      .single()
-
-    if (campaignError || !createdCampaign) {
-      console.error("[discounts][POST] Failed to create campaign", campaignError)
-      return NextResponse.json({ error: "Failed to create discount campaign" }, { status: 500 })
-    }
-
-    const variantPayload = data.variants.map((variant) => ({
-      campaign_id: createdCampaign.id,
-      variant_id: variant.variantId,
-      discount_percent: Number(variant.discountPercent.toFixed(2)),
-    }))
-
-    const { error: variantInsertError } = await supabase.from("discount_campaign_variants").insert(variantPayload)
-
-    if (variantInsertError) {
-      console.error("[discounts][POST] Failed to attach variants", variantInsertError)
-      await supabase.from("discount_campaigns").delete().eq("id", createdCampaign.id)
-      return NextResponse.json({ error: "Failed to attach variants to the campaign" }, { status: 500 })
-    }
-
-    const { data: refreshedCampaign, error: refreshError } = await supabase
-      .from("discount_campaigns")
-      .select(DISCOUNT_CAMPAIGN_SELECT)
-      .eq("id", createdCampaign.id)
-      .single()
-
-    if (refreshError || !refreshedCampaign) {
-      console.error("[discounts][POST] Failed to load campaign after creation", refreshError)
-      return NextResponse.json(
-        { error: "Discount campaign created but failed to load the final record" },
-        { status: 500 },
+    // Verify ownership
+    const validVariants = await db.query.productVariants.findMany({
+      where: and(
+        inArray(productVariants.id, uniqueVariantIds),
+        inArray(productVariants.productId,
+          db.select({ id: products.id })
+            .from(products)
+            .where(eq(products.projectId, tenantId))
+        )
       )
+    })
+
+    if (validVariants.length !== uniqueVariantIds.length) {
+      return NextResponse.json({ error: "Unauthorized or invalid variants" }, { status: 403 })
     }
 
-    const campaign = mapDiscountCampaignRow(refreshedCampaign as DiscountCampaignRowWithVariants)
-    return NextResponse.json({ data: campaign }, { status: 201 })
+    const result = await db.transaction(async (tx) => {
+      const [campaign] = await tx.insert(discountCampaigns).values({
+        projectId: tenantId,
+        name,
+        description: description || null,
+        bannerImageUrl: bannerImageUrl || null,
+        startDate,
+        endDate,
+        isActive: isActive ?? true
+      }).returning()
+
+      const variantValues = variants.map(v => ({
+        campaignId: campaign.id,
+        variantId: v.variantId,
+        discountPercent: Number(v.discountPercent.toFixed(2))
+      }))
+
+      await tx.insert(discountCampaignVariants).values(variantValues)
+
+      return tx.query.discountCampaigns.findFirst({
+        where: eq(discountCampaigns.id, campaign.id),
+        with: {
+          variants: {
+            with: {
+              variant: {
+                with: {
+                  product: true,
+                  sizes: true
+                }
+              }
+            }
+          }
+        }
+      })
+    })
+
+    if (!result) return NextResponse.json({ error: "Failed to create campaign" }, { status: 500 })
+
+    const transformed = {
+      ...result,
+      startDate: result.startDate.toISOString().split('T')[0],
+      endDate: result.endDate.toISOString().split('T')[0],
+      discount_campaign_variants: result.variants.map(v => ({
+        ...v,
+        variant: {
+          ...v.variant,
+          product: v.variant.product,
+          variant_sizes: v.variant.sizes
+        }
+      }))
+    }
+
+    return NextResponse.json({ data: transformed }, { status: 201 })
   } catch (error) {
     console.error("[discounts][POST] Unexpected error", error)
-    return NextResponse.json({ error: "Unexpected error creating discount campaign" }, { status: 500 })
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 })
   }
 }

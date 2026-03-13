@@ -1,4 +1,9 @@
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { headers } from "next/headers"
+import { getRequestContext } from "@cloudflare/next-on-pages"
+import { eq } from "drizzle-orm"
+import { getDb } from "@/lib/db"
+import { storefrontSettings } from "@/lib/db/schema"
+import { ensureTenantIdFromHeaders } from "@/lib/db/tenant"
 import { buildThemeConfig, themeConfigToCssVariables } from "@/lib/storefront-theme"
 
 import { getCatalogData } from "@/lib/storefront-data"
@@ -15,23 +20,25 @@ interface StorefrontHomeProps {
 export default async function StorefrontHome({ searchParams }: StorefrontHomeProps) {
   const params = await searchParams
   const isPreview = params.preview === "true"
-  const supabase = getSupabaseServiceRoleClient()
+
+  const { env } = getRequestContext()
+  const projectId = await ensureTenantIdFromHeaders(await headers(), env.DB)
+  const db = getDb(env.DB)
+
   const [
-    { data: settings },
+    settings,
     catalogData
   ] = await Promise.all([
-    supabase
-      .from("storefront_settings")
-      .select("theme_config, home_collection_mode, favicon_url")
-      .eq("id", 1)
-      .single(),
-    getCatalogData()
+    db.query.storefrontSettings.findFirst({
+      where: eq(storefrontSettings.projectId, projectId)
+    }),
+    getCatalogData(db, projectId)
   ])
 
-  const themeConfig = buildThemeConfig(settings?.theme_config)
+  const themeConfig = buildThemeConfig(settings?.themeConfig)
   const experimental = themeConfig.experimental!
 
-  const businessName = (settings?.theme_config as any)?.businessName || "CHIRP"
+  const businessName = (settings?.themeConfig as any)?.businessName || "CHIRP"
 
   const layout = experimental.layout!
 

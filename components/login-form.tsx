@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Eye, EyeOff } from "lucide-react"
 
+import { signIn } from "next-auth/react"
+
 interface LoginFormProps {
   redirectTo: string
 }
@@ -25,17 +27,14 @@ export default function LoginForm({ redirectTo }: LoginFormProps) {
     setError(null)
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
       })
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        throw new Error(payload.error || "Invalid credentials")
+      if (result?.error) {
+        throw new Error("Invalid credentials")
       }
 
       router.replace(redirectTo)

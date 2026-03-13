@@ -45,11 +45,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (isSigningOut) return
     setIsSigningOut(true)
     try {
-      const response = await fetch("/api/auth/logout", { method: "POST" })
-      if (!response.ok) {
-        throw new Error("Failed to sign out")
-      }
-      router.replace("/")
+      await fetch("/api/auth/signout", { method: "POST" })
+      router.replace("/login")
       router.refresh()
     } catch (error) {
       console.error("[admin] Failed to sign out", error)

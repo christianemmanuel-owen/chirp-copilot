@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
-import { mapProductRowToProduct, mapProductUpdateToUpdate, type ProductRowWithVariants } from "@/lib/supabase/transformers"
-import { PRODUCT_SELECT_FIELDS, resolveBrandId, resolveCategoryIds } from "../utils"
+import { getDb } from "@/lib/db"
+import { products as productsSchema, productCategories, productVariants, variantSizes, brands, categories } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, and, inArray } from "drizzle-orm"
+import { resolveBrandId, resolveCategoryIds } from "../utils"
 import type { UpdateProductInput } from "@/lib/types"
 
 function parseId(id: string) {
@@ -12,23 +14,55 @@ function parseId(id: string) {
   return numericId
 }
 
-export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: idParam } = await context.params
     const id = parseId(idParam)
-    const supabase = getSupabaseServiceRoleClient()
-    const { data, error } = await supabase.from("products").select(PRODUCT_SELECT_FIELDS).eq("id", id).single()
-
-    if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json({ error: "Product not found" }, { status: 404 })
-      }
-      console.error("[products][GET:id] Supabase error", error)
-      return NextResponse.json({ error: "Failed to load product" }, { status: 500 })
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) {
+      return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }
 
-    const product = mapProductRowToProduct(data as ProductRowWithVariants)
-    return NextResponse.json({ data: product })
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
+    const product = (await db.query.products.findFirst({
+      where: and(eq(productsSchema.id, id), eq(productsSchema.projectId, tenantId)),
+      with: {
+        brand: true,
+        productCategories: {
+          with: {
+            category: true,
+          }
+        },
+        variants: {
+          with: {
+            sizes: true,
+          }
+        }
+      }
+    })) as any
+
+    if (!product) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
+    }
+
+    // Transform to frontend type
+    const transformed = {
+      id: product.id,
+      name: product.name,
+      image: product.imageUrl,
+      brand: product.brand,
+      categories: product.productCategories.map((pc: any) => pc.category),
+      variants: product.variants.map((v: any) => ({
+        ...v,
+        sizes: v.sizes,
+      })),
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+    }
+
+    return NextResponse.json({ data: transformed })
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid product id") {
       return NextResponse.json({ error: error.message }, { status: 400 })
@@ -48,91 +82,74 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "No product fields provided for update" }, { status: 400 })
     }
 
-    const supabase = getSupabaseServiceRoleClient()
-    const { data: existingRow, error: existingError } = await supabase
-      .from("products")
-      .select(PRODUCT_SELECT_FIELDS)
-      .eq("id", id)
-      .single()
-
-    if (existingError) {
-      if (existingError.code === "PGRST116") {
-        return NextResponse.json({ error: "Product not found" }, { status: 404 })
-      }
-      console.error("[products][PATCH:id] Failed to load product", existingError)
-      return NextResponse.json({ error: "Failed to load product" }, { status: 500 })
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) {
+      return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }
 
-    const existingProductRow = existingRow as ProductRowWithVariants
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
+    // Ensure product exists and belongs to project
+    const existing = (await db.query.products.findFirst({
+      where: and(eq(productsSchema.id, id), eq(productsSchema.projectId, tenantId))
+    })) as any
+
+    if (!existing) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
+    }
 
     const hasBrandUpdate = Object.prototype.hasOwnProperty.call(payload, "brand")
-    const brandId = hasBrandUpdate ? await resolveBrandId(supabase, payload.brand ?? null) : undefined
+    const brandId = hasBrandUpdate ? await resolveBrandId(db, tenantId, payload.brand ?? null) : undefined
 
     const hasCategoryUpdate = Object.prototype.hasOwnProperty.call(payload, "categories")
     const categoryIds = hasCategoryUpdate
-      ? await resolveCategoryIds(supabase, payload.categories ?? [])
+      ? await resolveCategoryIds(db, tenantId, payload.categories ?? [])
       : undefined
 
-    const updatePayload = mapProductUpdateToUpdate(payload, hasBrandUpdate ? { brandId } : undefined)
+    await db.transaction(async (tx) => {
+      // Update product fields
+      const updateData: Record<string, any> = { updatedAt: new Date() }
+      if (payload.name !== undefined) updateData.name = payload.name
+      if (payload.image !== undefined) updateData.imageUrl = payload.image
+      if (hasBrandUpdate) updateData.brandId = brandId
 
-    if (Object.keys(updatePayload).length > 0) {
-      updatePayload.updated_at = new Date().toISOString()
-      const { error: updateError } = await supabase.from("products").update(updatePayload).eq("id", id)
-
-      if (updateError) {
-        console.error("[products][PATCH:id] Supabase update error", updateError)
-        return NextResponse.json({ error: "Failed to update product" }, { status: 500 })
-      }
-    }
-
-    if (hasCategoryUpdate) {
-      const previousCategoryIds = Array.from(
-        new Set((existingProductRow.product_categories ?? []).map((entry) => entry.category_id)),
-      )
-      const nextCategoryIds = Array.from(new Set(categoryIds ?? []))
-
-      const { error: deleteError } = await supabase.from("product_categories").delete().eq("product_id", id)
-
-      if (deleteError) {
-        console.error("[products][PATCH:id] Failed to clear product categories", deleteError)
-        return NextResponse.json({ error: "Failed to update product categories" }, { status: 500 })
+      if (Object.keys(updateData).length > 1) {
+        await tx.update(productsSchema)
+          .set(updateData)
+          .where(eq(productsSchema.id, id))
       }
 
-      if (nextCategoryIds.length > 0) {
-        const linkPayload = nextCategoryIds.map((categoryId) => ({
-          product_id: id,
-          category_id: categoryId,
-        }))
-        const { error: linkError } = await supabase.from("product_categories").insert(linkPayload)
-
-        if (linkError) {
-          console.error("[products][PATCH:id] Failed to link product categories", linkError)
-          if (previousCategoryIds.length > 0) {
-            const { error: restoreError } = await supabase
-              .from("product_categories")
-              .insert(previousCategoryIds.map((categoryId) => ({ product_id: id, category_id: categoryId })))
-            if (restoreError) {
-              console.error("[products][PATCH:id] Failed to restore previous categories", restoreError)
-            }
-          }
-          return NextResponse.json({ error: "Failed to update product categories" }, { status: 500 })
+      // Update categories
+      if (hasCategoryUpdate && categoryIds !== undefined) {
+        await tx.delete(productCategories).where(eq(productCategories.productId, id))
+        if (categoryIds.length > 0) {
+          await tx.insert(productCategories).values(
+            categoryIds.map(cid => ({ productId: id, categoryId: cid }))
+          )
         }
       }
-    }
+    })
 
-    const { data: refreshedRow, error: refreshError } = await supabase
-      .from("products")
-      .select(PRODUCT_SELECT_FIELDS)
-      .eq("id", id)
-      .single()
+    // Fetch updated product
+    const updated = await db.query.products.findFirst({
+      where: eq(productsSchema.id, id),
+      with: {
+        brand: true,
+        productCategories: {
+          with: {
+            category: true,
+          }
+        },
+        variants: {
+          with: {
+            sizes: true,
+          }
+        }
+      }
+    })
 
-    if (refreshError || !refreshedRow) {
-      console.error("[products][PATCH:id] Failed to load updated product", refreshError)
-      return NextResponse.json({ error: "Failed to load updated product" }, { status: 500 })
-    }
-
-    const product = mapProductRowToProduct(refreshedRow as ProductRowWithVariants)
-    return NextResponse.json({ data: product })
+    return NextResponse.json({ data: updated })
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid product id") {
       return NextResponse.json({ error: error.message }, { status: 400 })
@@ -142,16 +159,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 }
 
-export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: idParam } = await context.params
     const id = parseId(idParam)
-    const supabase = getSupabaseServiceRoleClient()
-    const { error } = await supabase.from("products").delete().eq("id", id)
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) {
+      return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
+    }
 
-    if (error) {
-      console.error("[products][DELETE:id] Supabase error", error)
-      return NextResponse.json({ error: "Failed to delete product" }, { status: 500 })
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
+    const result = await db.delete(productsSchema)
+      .where(and(eq(productsSchema.id, id), eq(productsSchema.projectId, tenantId)))
+      .returning()
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
     return NextResponse.json({ success: true })

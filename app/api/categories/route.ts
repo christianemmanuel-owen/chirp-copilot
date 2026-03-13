@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { getDb } from "@/lib/db"
+import { categories } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, and, sql } from "drizzle-orm"
 
 function normalizeName(value: unknown): string {
   if (typeof value !== "string") return ""
@@ -7,17 +10,22 @@ function normalizeName(value: unknown): string {
   return trimmed.length > 0 ? trimmed : ""
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const supabase = getSupabaseServiceRoleClient()
-    const { data, error } = await supabase.from("categories").select("id, name").order("name", { ascending: true })
-
-    if (error) {
-      console.error("[categories][GET] Supabase error", error)
-      return NextResponse.json({ error: "Failed to load categories" }, { status: 500 })
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) {
+      return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }
 
-    return NextResponse.json({ data: data ?? [] })
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
+    const data = await db.select()
+      .from(categories)
+      .where(eq(categories.projectId, tenantId))
+      .orderBy(categories.name)
+
+    return NextResponse.json({ data })
   } catch (error) {
     console.error("[categories][GET] Unexpected error", error)
     return NextResponse.json({ error: "Unexpected error retrieving categories" }, { status: 500 })
@@ -33,24 +41,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Category name is required" }, { status: 400 })
     }
 
-    const supabase = getSupabaseServiceRoleClient()
-    const { data, error } = await supabase
-      .from("categories")
-      .insert({ name, updated_at: new Date().toISOString() })
-      .select("id, name")
-      .single()
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) {
+      return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
+    }
 
-    if (error) {
-      if (error.code === "23505") {
-        return NextResponse.json({ error: "Category name already exists" }, { status: 409 })
-      }
-      console.error("[categories][POST] Supabase error", error)
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
+    const [data] = await db.insert(categories)
+      .values({
+        name,
+        projectId: tenantId
+      })
+      .onConflictDoUpdate({
+        target: [categories.projectId, categories.name],
+        set: { name } // No-op to trigger return of existing if needed, or handle error
+      })
+      .returning()
+
+    if (!data) {
       return NextResponse.json({ error: "Failed to create category" }, { status: 500 })
     }
 
     return NextResponse.json({ data }, { status: 201 })
   } catch (error) {
     console.error("[categories][POST] Unexpected error", error)
+    if ((error as any).message?.includes("UNIQUE constraint failed")) {
+      return NextResponse.json({ error: "Category name already exists" }, { status: 409 })
+    }
     return NextResponse.json({ error: "Unexpected error creating category" }, { status: 500 })
   }
 }

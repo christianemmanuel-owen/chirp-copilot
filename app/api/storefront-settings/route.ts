@@ -1,6 +1,9 @@
 import { revalidatePath } from "next/cache"
 import { NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { getDb } from "@/lib/db"
+import { storefrontSettings as settingsSchema } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq } from "drizzle-orm"
 import type { CollectionTileMode } from "@/lib/storefront-data"
 import { PHILIPPINE_REGIONS } from "@/lib/shipping"
 import {
@@ -254,42 +257,31 @@ const buildSuccess = (payload: {
   }
 }) => NextResponse.json({ data: payload }, { status: 200 })
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const supabase = getSupabaseServiceRoleClient()
-    const { data, error } = await supabase
-      .from("storefront_settings")
-      .select(
-        "home_collection_mode, home_banner_manual_product_ids, favicon_url, highlight_popular_hero, highlight_latest_hero, nav_collections_enabled, shipping_default_fee, shipping_region_overrides, vat_enabled, theme_config, pickup_enabled, pickup_location_name, pickup_location_unit, pickup_location_lot, pickup_location_street, pickup_location_city, pickup_location_region, pickup_location_zip_code, pickup_location_country, pickup_location_notes",
-      )
-      .eq("id", 1)
-      .maybeSingle()
-
-    if (error) {
-      console.error("[storefront-settings][GET] Supabase error", error)
-      return NextResponse.json(
-        { error: "Failed to load storefront settings" },
-        { status: 500 },
-      )
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) {
+      return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
     }
 
-    const mode = normalizeMode(data?.home_collection_mode) ?? DEFAULT_MODE
-    const bannerProductIds = sanitizeBannerProductIds(data?.home_banner_manual_product_ids ?? []) ?? []
-    const faviconUrl = normalizeFaviconUrl(data?.favicon_url) ?? null
-    const highlightPopular =
-      typeof data?.highlight_popular_hero === "boolean" ? data.highlight_popular_hero : DEFAULT_HIGHLIGHT_POPULAR
-    const highlightLatest =
-      typeof data?.highlight_latest_hero === "boolean" ? data.highlight_latest_hero : DEFAULT_HIGHLIGHT_LATEST
-    const navCollectionsEnabled =
-      typeof data?.nav_collections_enabled === "boolean"
-        ? data.nav_collections_enabled
-        : DEFAULT_NAV_COLLECTIONS_ENABLED
-    const shippingBaseFee =
-      typeof data?.shipping_default_fee === "number" ? Number(data.shipping_default_fee) : DEFAULT_SHIPPING_BASE_FEE
-    const shippingRegionOverrides = normalizeShippingOverridesInput(data?.shipping_region_overrides ?? {}) ?? {}
-    const vatEnabled = typeof data?.vat_enabled === "boolean" ? data.vat_enabled : DEFAULT_VAT_ENABLED
-    const theme = buildThemeConfig(data?.theme_config)
-    const pickupEnabled = typeof data?.pickup_enabled === "boolean" ? data.pickup_enabled : true
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
+    const data = await db.query.storefrontSettings.findFirst({
+      where: eq(settingsSchema.projectId, tenantId)
+    })
+
+    const mode = normalizeMode(data?.homeCollectionMode) ?? DEFAULT_MODE
+    const bannerProductIds = sanitizeBannerProductIds(data?.homeBannerManualProductIds ? (typeof data.homeBannerManualProductIds === 'string' ? JSON.parse(data.homeBannerManualProductIds) : data.homeBannerManualProductIds) : []) ?? []
+    const faviconUrl = normalizeFaviconUrl(data?.faviconUrl) ?? null
+    const highlightPopular = typeof data?.highlightPopularHero === "boolean" ? data.highlightPopularHero : DEFAULT_HIGHLIGHT_POPULAR
+    const highlightLatest = typeof data?.highlightLatestHero === "boolean" ? data.highlightLatestHero : DEFAULT_HIGHLIGHT_LATEST
+    const navCollectionsEnabled = typeof data?.navCollectionsEnabled === "boolean" ? data.navCollectionsEnabled : DEFAULT_NAV_COLLECTIONS_ENABLED
+    const shippingBaseFee = typeof data?.shippingDefaultFee === "number" ? Number(data.shippingDefaultFee) : DEFAULT_SHIPPING_BASE_FEE
+    const shippingRegionOverrides = normalizeShippingOverridesInput(data?.shippingRegionOverrides ?? {}) ?? {}
+    const vatEnabled = typeof data?.vatEnabled === "boolean" ? data.vatEnabled : DEFAULT_VAT_ENABLED
+    const theme = buildThemeConfig(data?.themeConfig)
+    const pickupEnabled = typeof data?.pickupEnabled === "boolean" ? data.pickupEnabled : true
 
     return buildSuccess({
       mode,
@@ -304,15 +296,15 @@ export async function GET() {
       theme,
       pickupEnabled,
       pickupLocation: buildPickupLocationResponse({
-        name: data?.pickup_location_name ?? null,
-        unit: data?.pickup_location_unit ?? null,
-        lot: data?.pickup_location_lot ?? null,
-        street: data?.pickup_location_street ?? null,
-        city: data?.pickup_location_city ?? null,
-        region: data?.pickup_location_region ?? null,
-        zipCode: data?.pickup_location_zip_code ?? null,
-        country: data?.pickup_location_country ?? null,
-        notes: data?.pickup_location_notes ?? null,
+        name: data?.pickupLocationName ?? null,
+        unit: data?.pickupLocationUnit ?? null,
+        lot: data?.pickupLocationLot ?? null,
+        street: data?.pickupLocationStreet ?? null,
+        city: data?.pickupLocationCity ?? null,
+        region: data?.pickupLocationRegion ?? null,
+        zipCode: data?.pickupLocationZipCode ?? null,
+        country: data?.pickupLocationCountry ?? null,
+        notes: data?.pickupLocationNotes ?? null,
       }),
       experimental: {
         ...theme.experimental,
@@ -341,6 +333,12 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
+
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
     const payload = await request.json().catch(() => null)
 
     if (!payload || typeof payload !== "object") {
@@ -361,354 +359,147 @@ export async function PATCH(request: Request) {
     const hasNavCollectionsEnabled = Object.prototype.hasOwnProperty.call(payload, "navCollectionsEnabled")
     const hasExperimental = Object.prototype.hasOwnProperty.call(payload, "experimental")
 
-    if (
-      !hasMode &&
-      !hasBannerProductIds &&
-      !hasFaviconUrl &&
-      !hasHighlightPopular &&
-      !hasHighlightLatest &&
-      !hasShippingBaseFee &&
-      !hasShippingOverrides &&
-      !hasVatEnabled &&
-      !hasPickupLocation &&
-      !hasPickupEnabled &&
-      !hasTheme &&
-      !hasNavCollectionsEnabled &&
-      !hasExperimental
-    ) {
-      return NextResponse.json({ error: "No storefront settings provided" }, { status: 400 })
-    }
-
     let mode: CollectionTileMode | undefined
     if (hasMode) {
-      const normalizedMode = normalizeMode((payload as { mode?: unknown }).mode)
-      if (!normalizedMode) {
-        return NextResponse.json(
-          { error: "Mode must be either \"brand(s)\" or \"category(ies)\"" },
-          { status: 400 },
-        )
-      }
+      const normalizedMode = normalizeMode((payload as any).mode)
+      if (!normalizedMode) return NextResponse.json({ error: "Invalid mode" }, { status: 400 })
       mode = normalizedMode
-
     }
+
     let bannerProductIds: number[] | undefined
     if (hasBannerProductIds) {
-      const sanitized = sanitizeBannerProductIds(
-        (payload as { bannerProductIds?: unknown }).bannerProductIds,
-      )
-      if (sanitized === null) {
-        return NextResponse.json(
-          { error: "bannerProductIds must be an array of positive integers" },
-          { status: 400 },
-        )
-      }
+      const sanitized = sanitizeBannerProductIds((payload as any).bannerProductIds)
+      if (sanitized === null) return NextResponse.json({ error: "Invalid bannerProductIds" }, { status: 400 })
       bannerProductIds = sanitized
     }
 
     let faviconUrl: string | null | undefined
     if (hasFaviconUrl) {
-      const raw = (payload as { faviconUrl?: unknown }).faviconUrl
-      if (raw === null || raw === undefined) {
-        faviconUrl = null
-      } else if (typeof raw === "string") {
-        const normalized = normalizeFaviconUrl(raw)
-        if (!normalized) {
-          faviconUrl = null
-        } else {
-          faviconUrl = normalized
-        }
-      } else {
-        return NextResponse.json(
-          { error: "faviconUrl must be a string or null" },
-          { status: 400 },
-        )
-      }
+      const raw = (payload as any).faviconUrl
+      faviconUrl = raw ? normalizeFaviconUrl(raw) : null
     }
 
     let highlightPopular: boolean | undefined
-    if (hasHighlightPopular) {
-      const raw = (payload as { highlightPopular?: unknown }).highlightPopular
-      if (typeof raw !== "boolean") {
-        return NextResponse.json(
-          { error: "highlightPopular must be a boolean value" },
-          { status: 400 },
-        )
-      }
-      highlightPopular = raw
-    }
+    if (hasHighlightPopular) highlightPopular = !!(payload as any).highlightPopular
 
     let highlightLatest: boolean | undefined
-    if (hasHighlightLatest) {
-      const raw = (payload as { highlightLatest?: unknown }).highlightLatest
-      if (typeof raw !== "boolean") {
-        return NextResponse.json(
-          { error: "highlightLatest must be a boolean value" },
-          { status: 400 },
-        )
-      }
-      highlightLatest = raw
-    }
+    if (hasHighlightLatest) highlightLatest = !!(payload as any).highlightLatest
 
     let navCollectionsEnabled: boolean | undefined
-    if (hasNavCollectionsEnabled) {
-      const raw = (payload as { navCollectionsEnabled?: unknown }).navCollectionsEnabled
-      if (typeof raw !== "boolean") {
-        return NextResponse.json(
-          { error: "navCollectionsEnabled must be a boolean" },
-          { status: 400 },
-        )
-      }
-      navCollectionsEnabled = raw
-    }
+    if (hasNavCollectionsEnabled) navCollectionsEnabled = !!(payload as any).navCollectionsEnabled
 
     let shippingBaseFee: number | undefined
     if (hasShippingBaseFee) {
-      const normalized = normalizeShippingBaseFeeInput((payload as { shippingBaseFee?: unknown }).shippingBaseFee)
-      if (normalized === null) {
-        return NextResponse.json(
-          { error: "shippingBaseFee must be a non-negative number" },
-          { status: 400 },
-        )
-      }
+      const normalized = normalizeShippingBaseFeeInput((payload as any).shippingBaseFee)
+      if (normalized === null) return NextResponse.json({ error: "Invalid shippingBaseFee" }, { status: 400 })
       shippingBaseFee = normalized
     }
 
     let shippingRegionOverrides: ShippingOverrideRecord | undefined
     if (hasShippingOverrides) {
-      const raw = (payload as { shippingRegionOverrides?: unknown }).shippingRegionOverrides
-      if (raw === null) {
-        shippingRegionOverrides = {}
-      } else {
-        const normalized = normalizeShippingOverridesInput(raw)
-        if (normalized === null) {
-          return NextResponse.json(
-            { error: "shippingRegionOverrides must be an object with region -> fee mappings" },
-            { status: 400 },
-          )
-        }
-        shippingRegionOverrides = normalized
-      }
+      const normalized = normalizeShippingOverridesInput((payload as any).shippingRegionOverrides)
+      if (normalized === null) return NextResponse.json({ error: "Invalid shippingRegionOverrides" }, { status: 400 })
+      shippingRegionOverrides = normalized
     }
 
     let vatEnabled: boolean | undefined
-    if (hasVatEnabled) {
-      const raw = (payload as { vatEnabled?: unknown }).vatEnabled
-      if (typeof raw !== "boolean") {
-        return NextResponse.json(
-          { error: "vatEnabled must be a boolean value" },
-          { status: 400 },
-        )
-      }
-      vatEnabled = raw
-    }
-
-    let pickupLocation:
-      | {
-        name: string | null
-        unit: string | null
-        lot: string | null
-        street: string
-        city: string
-        region: string
-        zipCode: string
-        country: string | null
-        notes: string | null
-      }
-      | undefined
-    if (hasPickupLocation) {
-      const normalized = normalizePickupLocationInput((payload as { pickupLocation?: unknown }).pickupLocation)
-      if (!normalized) {
-        return NextResponse.json(
-          { error: "pickupLocation must include street, city, region, and zipCode strings" },
-          { status: 400 },
-        )
-      }
-      pickupLocation = normalized
-    }
+    if (hasVatEnabled) vatEnabled = !!(payload as any).vatEnabled
 
     let pickupEnabled: boolean | undefined
-    if (hasPickupEnabled) {
-      const raw = (payload as { pickupEnabled?: unknown }).pickupEnabled
-      if (typeof raw !== "boolean") {
-        return NextResponse.json({ error: "pickupEnabled must be a boolean value" }, { status: 400 })
-      }
-      pickupEnabled = raw
+    if (hasPickupEnabled) pickupEnabled = !!(payload as any).pickupEnabled
+
+    let pickupLocation: any
+    if (hasPickupLocation) {
+      pickupLocation = normalizePickupLocationInput((payload as any).pickupLocation)
+      if (!pickupLocation) return NextResponse.json({ error: "Invalid pickupLocation" }, { status: 400 })
     }
 
     let themeConfigPayload: StorefrontThemeConfig | undefined
     if (hasTheme || hasExperimental) {
-      const rawTheme = (payload as { theme?: unknown }).theme ?? {}
-      if (typeof rawTheme !== "object") {
-        return NextResponse.json(
-          { error: "theme must be an object" },
-          { status: 400 },
-        )
-      }
+      const rawTheme = (payload as any).theme ?? {}
       themeConfigPayload = buildThemeConfig(rawTheme)
-
-      // If we have experimental flags in the payload, merge them into the theme config
       if (hasExperimental) {
         const exp = (payload as any).experimental
         themeConfigPayload.experimental = {
           ...themeConfigPayload.experimental,
           ...exp,
-          content: {
-            ...(themeConfigPayload.experimental?.content || {}),
-            ...(exp.content || {})
-          },
-          navbar: {
-            ...(themeConfigPayload.experimental?.navbar || {}),
-            ...(exp.navbar || {})
-          },
+          content: { ...(themeConfigPayload.experimental?.content || {}), ...(exp.content || {}) },
+          navbar: { ...(themeConfigPayload.experimental?.navbar || {}), ...(exp.navbar || {}) },
           layout: exp.layout ?? (themeConfigPayload.experimental?.layout),
           catalogLayout: exp.catalogLayout ?? (themeConfigPayload.experimental?.catalogLayout)
         }
       }
     }
 
-    // Revalidate the experimental home page to reflect changes immediately
-    revalidatePath("/experimental-home")
-
-    const supabase = getSupabaseServiceRoleClient()
-
-    const { data, error } = await supabase
-      .from("storefront_settings")
-      .upsert(
-        {
-          id: 1,
-          ...(mode ? { home_collection_mode: toDatabaseMode(mode) } : {}),
-          ...(bannerProductIds ? { home_banner_manual_product_ids: bannerProductIds } : {}),
-          ...(hasFaviconUrl ? { favicon_url: faviconUrl ?? null } : {}),
-          ...(hasHighlightPopular ? { highlight_popular_hero: highlightPopular } : {}),
-          ...(hasHighlightLatest ? { highlight_latest_hero: highlightLatest } : {}),
-          ...(hasNavCollectionsEnabled ? { nav_collections_enabled: navCollectionsEnabled } : {}),
-          ...(hasShippingBaseFee ? { shipping_default_fee: shippingBaseFee } : {}),
-          ...(hasShippingOverrides ? { shipping_region_overrides: shippingRegionOverrides ?? {} } : {}),
-          ...(hasVatEnabled ? { vat_enabled: vatEnabled } : {}),
-          ...(hasPickupEnabled ? { pickup_enabled: pickupEnabled } : {}),
-          ...(hasPickupLocation
-            ? {
-              pickup_location_name: pickupLocation?.name ?? null,
-              pickup_location_unit: pickupLocation?.unit ?? null,
-              pickup_location_lot: pickupLocation?.lot ?? null,
-              pickup_location_street: pickupLocation?.street ?? null,
-              pickup_location_city: pickupLocation?.city ?? null,
-              pickup_location_region: pickupLocation?.region ?? null,
-              pickup_location_zip_code: pickupLocation?.zipCode ?? null,
-              pickup_location_country: pickupLocation?.country ?? null,
-              pickup_location_notes: pickupLocation?.notes ?? null,
-            }
-            : {}),
-          ...(themeConfigPayload ? { theme_config: themeConfigPayload as any } : {}),
-        },
-        { onConflict: "id" },
-      )
-      .select(
-        "home_collection_mode, home_banner_manual_product_ids, favicon_url, highlight_popular_hero, highlight_latest_hero, nav_collections_enabled, shipping_default_fee, shipping_region_overrides, vat_enabled, theme_config, pickup_enabled, pickup_location_name, pickup_location_unit, pickup_location_lot, pickup_location_street, pickup_location_city, pickup_location_region, pickup_location_zip_code, pickup_location_country, pickup_location_notes",
-      )
-      .single()
-
-    if (error) {
-      console.error("[storefront-settings][PATCH] Supabase error", error)
-      return NextResponse.json(
-        { error: "Failed to update storefront settings" },
-        { status: 500 },
-      )
+    const updateData: any = {
+      ...(mode ? { homeCollectionMode: toDatabaseMode(mode) } : {}),
+      ...(bannerProductIds ? { homeBannerManualProductIds: bannerProductIds } : {}),
+      ...(hasFaviconUrl ? { faviconUrl: faviconUrl } : {}),
+      ...(hasHighlightPopular ? { highlightPopularHero: highlightPopular } : {}),
+      ...(hasHighlightLatest ? { highlightLatestHero: highlightLatest } : {}),
+      ...(hasNavCollectionsEnabled ? { navCollectionsEnabled: navCollectionsEnabled } : {}),
+      ...(hasShippingBaseFee ? { shippingDefaultFee: shippingBaseFee } : {}),
+      ...(hasShippingOverrides ? { shippingRegionOverrides: shippingRegionOverrides } : {}),
+      ...(hasVatEnabled ? { vatEnabled: vatEnabled } : {}),
+      ...(hasPickupEnabled ? { pickupEnabled: pickupEnabled } : {}),
+      ...(hasPickupLocation ? {
+        pickupLocationName: pickupLocation.name,
+        pickupLocationUnit: pickupLocation.unit,
+        pickupLocationLot: pickupLocation.lot,
+        pickupLocationStreet: pickupLocation.street,
+        pickupLocationCity: pickupLocation.city,
+        pickupLocationRegion: pickupLocation.region,
+        pickupLocationZipCode: pickupLocation.zipCode,
+        pickupLocationCountry: pickupLocation.country,
+        pickupLocationNotes: pickupLocation.notes,
+      } : {}),
+      ...(themeConfigPayload ? { themeConfig: themeConfigPayload } : {}),
+      updatedAt: new Date()
     }
 
-    const appliedMode = normalizeMode(data?.home_collection_mode) ?? mode ?? DEFAULT_MODE
-    const appliedBannerProductIds = sanitizeBannerProductIds(data?.home_banner_manual_product_ids ?? []) ?? []
-    const appliedFaviconUrl = normalizeFaviconUrl(data?.favicon_url) ?? (faviconUrl ?? null)
-    const appliedHighlightPopular =
-      typeof data?.highlight_popular_hero === "boolean"
-        ? data.highlight_popular_hero
-        : highlightPopular ?? DEFAULT_HIGHLIGHT_POPULAR
-    const appliedHighlightLatest =
-      typeof data?.highlight_latest_hero === "boolean"
-        ? data.highlight_latest_hero
-        : highlightLatest ?? DEFAULT_HIGHLIGHT_LATEST
+    await db.insert(settingsSchema)
+      .values({ projectId: tenantId, ...updateData })
+      .onConflictDoUpdate({
+        target: settingsSchema.projectId,
+        set: updateData
+      })
 
-    const appliedNavCollectionsEnabled =
-      typeof data?.nav_collections_enabled === "boolean"
-        ? data.nav_collections_enabled
-        : navCollectionsEnabled ?? DEFAULT_NAV_COLLECTIONS_ENABLED
+    revalidatePath("/experimental-home")
 
-    const appliedShippingBaseFee =
-      typeof data?.shipping_default_fee === "number"
-        ? Number(data.shipping_default_fee)
-        : shippingBaseFee ?? DEFAULT_SHIPPING_BASE_FEE
-    const appliedShippingOverrides =
-      normalizeShippingOverridesInput(data?.shipping_region_overrides ?? shippingRegionOverrides ?? {}) ??
-      shippingRegionOverrides ??
-      {}
-    const appliedVatEnabled =
-      typeof data?.vat_enabled === "boolean" ? data.vat_enabled : vatEnabled ?? DEFAULT_VAT_ENABLED
-    const appliedTheme = buildThemeConfig(data?.theme_config ?? themeConfigPayload ?? DEFAULT_THEME_CONFIG)
-    const appliedPickupEnabled =
-      typeof data?.pickup_enabled === "boolean" ? data.pickup_enabled : pickupEnabled ?? true
-
-    const appliedPickupLocation = buildPickupLocationResponse({
-      name: data?.pickup_location_name ?? pickupLocation?.name ?? null,
-      unit: data?.pickup_location_unit ?? pickupLocation?.unit ?? null,
-      lot: data?.pickup_location_lot ?? pickupLocation?.lot ?? null,
-      street: data?.pickup_location_street ?? pickupLocation?.street ?? null,
-      city: data?.pickup_location_city ?? pickupLocation?.city ?? null,
-      region: data?.pickup_location_region ?? pickupLocation?.region ?? null,
-      zipCode: data?.pickup_location_zip_code ?? pickupLocation?.zipCode ?? null,
-      country: data?.pickup_location_country ?? pickupLocation?.country ?? null,
-      notes: data?.pickup_location_notes ?? pickupLocation?.notes ?? null,
+    const data = await db.query.storefrontSettings.findFirst({
+      where: eq(settingsSchema.projectId, tenantId)
     })
+
+    if (!data) return NextResponse.json({ error: "Failed to reload settings" }, { status: 500 })
 
     return buildSuccess({
-      mode: appliedMode,
-      bannerProductIds: appliedBannerProductIds,
-      faviconUrl: appliedFaviconUrl,
-      highlightPopular: appliedHighlightPopular ?? DEFAULT_HIGHLIGHT_POPULAR,
-      highlightLatest: appliedHighlightLatest ?? DEFAULT_HIGHLIGHT_LATEST,
-      navCollectionsEnabled: appliedNavCollectionsEnabled ?? DEFAULT_NAV_COLLECTIONS_ENABLED,
-      shippingBaseFee: appliedShippingBaseFee,
-      shippingRegionOverrides: appliedShippingOverrides,
-      vatEnabled: appliedVatEnabled,
-      theme: appliedTheme,
-      pickupEnabled: appliedPickupEnabled,
-      pickupLocation: appliedPickupLocation,
-      experimental: {
-        aboutUsEnabled: appliedTheme.experimental?.aboutUsEnabled ?? true,
-        featuredProductsEnabled: appliedTheme.experimental?.featuredProductsEnabled ?? true,
-        testimonialsEnabled: appliedTheme.experimental?.testimonialsEnabled ?? false,
-        navbar: {
-          useLogo: appliedTheme.experimental?.navbar?.useLogo ?? false,
-          dropdownMode: appliedTheme.experimental?.navbar?.dropdownMode ?? "categories",
-        },
-        content: {
-          heroTitle: appliedTheme.experimental?.content?.heroTitle ?? "Exquisite Pieces.",
-          heroTitleHighlight: appliedTheme.experimental?.content?.heroTitleHighlight ?? "Designed for life.",
-          heroDescription: appliedTheme.experimental?.content?.heroDescription ?? "Elevate your lifestyle with our premium collection of hand-picked goods.",
-          featuredTitle: appliedTheme.experimental?.content?.featuredTitle ?? "Featured Collection",
-          featuredSubtitle: appliedTheme.experimental?.content?.featuredSubtitle ?? "Our most coveted pieces, selected for you.",
-          aboutTitle: appliedTheme.experimental?.content?.aboutTitle ?? "Our Commitment to Quality",
-          aboutContent: appliedTheme.experimental?.content?.aboutContent ?? "We believe that the objects you surround yourself with should be as intentional as the life you lead. Each piece in our collection is selected for its superior craftsmanship, timeless design, and functional excellence.",
-          footerMission: appliedTheme.experimental?.content?.footerMission ?? "Elevating your lifestyle with curated, high-end essentials designed for intentional living.",
-          footerNewsletterBlurb: appliedTheme.experimental?.content?.footerNewsletterBlurb ?? "Join our inner circle for exclusive drops and design stories."
-        },
-        layout: appliedTheme.experimental?.layout ?? [
-          { id: "hero-1", type: "hero", enabled: true },
-          { id: "categories-1", type: "categories", enabled: true },
-          { id: "about-1", type: "about", enabled: true },
-          { id: "featured-1", type: "featured", enabled: true },
-          { id: "footer-1", type: "footer", enabled: true },
-        ],
-        catalogLayout: appliedTheme.experimental?.catalogLayout ?? [
-          { id: "catalog-grid-1", type: "catalog-grid", enabled: true },
-          { id: "footer-1", type: "footer", enabled: true }
-        ]
-      },
+      mode: normalizeMode(data.homeCollectionMode) ?? DEFAULT_MODE,
+      bannerProductIds: sanitizeBannerProductIds(data.homeBannerManualProductIds) ?? [],
+      faviconUrl: normalizeFaviconUrl(data.faviconUrl) ?? null,
+      highlightPopular: data.highlightPopularHero,
+      highlightLatest: data.highlightLatestHero,
+      navCollectionsEnabled: data.navCollectionsEnabled,
+      shippingBaseFee: data.shippingDefaultFee,
+      shippingRegionOverrides: (data.shippingRegionOverrides as any) ?? {},
+      vatEnabled: data.vatEnabled,
+      theme: buildThemeConfig(data.themeConfig),
+      pickupEnabled: data.pickupEnabled,
+      pickupLocation: buildPickupLocationResponse({
+        name: data.pickupLocationName,
+        unit: data.pickupLocationUnit,
+        lot: data.pickupLocationLot,
+        street: data.pickupLocationStreet,
+        city: data.pickupLocationCity,
+        region: data.pickupLocationRegion,
+        zipCode: data.pickupLocationZipCode,
+        country: data.pickupLocationCountry,
+        notes: data.pickupLocationNotes,
+      }),
+      experimental: buildThemeConfig(data.themeConfig).experimental as any
     })
+
   } catch (error) {
     console.error("[storefront-settings][PATCH] Unexpected error", error)
-    return NextResponse.json(
-      { error: "Unexpected error updating storefront settings" },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 })
   }
 }

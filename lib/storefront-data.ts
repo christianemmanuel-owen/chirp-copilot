@@ -1,40 +1,17 @@
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { eq, and, asc } from "drizzle-orm"
+import { getDb, type DbClient } from "@/lib/db"
 import {
-  mapDiscountCampaignRow,
-  mapProductRowToProduct,
-  type DiscountCampaignRowWithVariants,
-  type ProductRowWithVariants,
-} from "@/lib/supabase/transformers"
-import type { Database } from "@/lib/supabase/types"
-import type { DiscountCampaign, PreorderDownPaymentConfig, Product } from "@/lib/types"
+  products,
+  storefrontSettings,
+  discountCampaigns,
+  categories,
+  brands,
+  orders,
+  productVariants,
+} from "@/lib/db/schema"
 import { createVariantSlug } from "@/lib/utils"
 
-const PRODUCT_SELECT_FIELDS =
-  "*, brand:brands(*), product_categories(category:categories(*)), product_variants(*, variant_sizes(*))"
-
-const DISCOUNT_CAMPAIGN_SELECT = `
-  *,
-  discount_campaign_variants (
-    id,
-    campaign_id,
-    variant_id,
-    discount_percent,
-    created_at,
-    updated_at,
-    variant:product_variants (
-      *,
-      product:products(*),
-      variant_sizes(*)
-    )
-  )
-`
-
 export type CollectionTileKind = "brand" | "category"
-
-type BrandRow = Database["public"]["Tables"]["brands"]["Row"]
-type CategoryRow = Database["public"]["Tables"]["categories"]["Row"]
-type OrderRow = Database["public"]["Tables"]["orders"]["Row"]
-type StorefrontSettingsRow = Database["public"]["Tables"]["storefront_settings"]["Row"]
 
 export interface NavCollectionItem {
   id: number
@@ -133,11 +110,74 @@ export interface VariantDetailSibling {
   isActive: boolean
 }
 
+export interface Size {
+  id: number
+  size: string | null
+  price: number
+  stockQuantity: number
+}
+
+export interface Variant {
+  id: number
+  productId: number
+  sku: string | null
+  color: string | null
+  imageUrl: string | null
+  description: string | null
+  isActive: boolean
+  isPreorder: boolean
+  preorderMessage: string | null
+  preorderDownPayment: number | null
+  sizes: Size[]
+}
+
+export interface Product {
+  id: number
+  name: string
+  imageUrl: string | null
+  description: string | null
+  brandId: number | null
+  projectId: string
+  brand?: { id: number; name: string } | null
+  productCategories: { category: { id: number; name: string } | null }[]
+  variants: Variant[]
+  createdAt?: Date
+}
+
+export interface CampaignVariant {
+  id: number
+  campaignId: string
+  variantId: number
+  productId: number
+  productName: string
+  variantLabel: string | null
+  sku: string | null
+  color: string | null
+  image: string
+  basePrice: number
+  discountPercent: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface DiscountCampaign {
+  id: string
+  name: string
+  description: string | null
+  bannerImage: string | null
+  startDate: string
+  endDate: string
+  isActive: boolean
+  variants: CampaignVariant[]
+  createdAt?: string
+  updatedAt?: string
+}
+
 const getActiveVariants = (product: Product) =>
   (product.variants ?? []).filter((variant) => variant.isActive)
 
 const getActiveVariantImages = (product: Product) =>
-  getActiveVariants(product).map((variant) => variant.image ?? undefined)
+  getActiveVariants(product).map((variant) => variant.imageUrl ?? undefined)
 
 export interface VariantDetailData {
   product: {
@@ -155,7 +195,7 @@ export interface VariantDetailData {
     image: string
     isPreorder: boolean
     preorderMessage: string | null
-    preorderDownPayment: PreorderDownPaymentConfig | null
+    preorderDownPayment: number | null
     sizeOptions: VariantDetailSizeOption[]
     minPrice: number
     maxPrice: number
@@ -175,6 +215,7 @@ const DISCOUNT_SLIDE_ID_BASE = 1_000_000_000
 interface DiscountPromotion {
   slide: HeroProductHighlight
   campaignId: string
+  discountCampaignId: string
   campaignName: string
   description?: string | null
   variantIds: number[]
@@ -313,6 +354,7 @@ function buildDiscountPromotion(campaigns: DiscountCampaign[]): DiscountPromotio
   return {
     slide,
     campaignId: featuredCampaign.id,
+    discountCampaignId: featuredCampaign.id,
     campaignName: featuredCampaign.name,
     description: featuredCampaign.description?.trim() ?? null,
     variantIds,
@@ -443,91 +485,114 @@ function formatRecentSubtitle(createdAt: string | undefined, categoryName?: stri
   return categoryName ? `Newest in ${categoryName} · Added ${formatted}` : `Added ${formatted}`
 }
 
-export async function getCatalogData(): Promise<CatalogData> {
-  const supabase = getSupabaseServiceRoleClient()
-
+export async function getCatalogData(db: DbClient, projectId: string): Promise<CatalogData> {
   const [
-    { data: productRows, error: productError },
-    { data: orderRows, error: orderError },
-    { data: categoryRows, error: categoryError },
-    { data: brandRows, error: brandError },
-    { data: settingsRow, error: settingsError },
-    { data: discountCampaignRows, error: discountCampaignError },
+    productRows,
+    settingsRow,
+    discountCampaignRows,
+    categoryRows,
+    brandRows,
+    orderRows,
   ] = await Promise.all([
-    supabase.from("products").select(PRODUCT_SELECT_FIELDS),
-    supabase.from("orders").select("order_items, created_at"),
-    supabase.from("categories").select("id, name"),
-    supabase.from("brands").select("id, name"),
-    supabase
-      .from("storefront_settings")
-      .select(
-        "id, home_collection_mode, home_banner_manual_product_ids, highlight_popular_hero, highlight_latest_hero, nav_collections_enabled, updated_at",
-      )
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<StorefrontSettingsRow>(),
-    supabase
-      .from("discount_campaigns")
-      .select(DISCOUNT_CAMPAIGN_SELECT)
-      .order("start_date", { ascending: true })
-      .limit(10),
+    db.query.products.findMany({
+      where: eq(products.projectId, projectId),
+      with: {
+        brand: true,
+        productCategories: { with: { category: true } },
+        variants: { with: { sizes: true } },
+      },
+    }),
+    db.query.storefrontSettings.findFirst({
+      where: eq(storefrontSettings.projectId, projectId),
+    }),
+    db.query.discountCampaigns.findMany({
+      where: and(eq(discountCampaigns.projectId, projectId), eq(discountCampaigns.isActive, true)),
+      with: {
+        variants: {
+          with: {
+            variant: {
+              with: {
+                product: true,
+                sizes: true,
+              }
+            }
+          }
+        }
+      },
+      orderBy: [asc(discountCampaigns.startDate)],
+      limit: 10,
+    }),
+    db.select().from(categories).where(eq(categories.projectId, projectId)),
+    db.select().from(brands).where(eq(brands.projectId, projectId)),
+    db.select({
+      orderItems: orders.orderItems,
+      createdAt: orders.createdAt,
+    }).from(orders).where(eq(orders.projectId, projectId)),
   ])
 
-  if (productError) {
-    console.error("[storefront] Failed to load products from Supabase", productError)
-    throw new Error("Failed to load catalog products")
-  }
+  const highlightPopular = settingsRow?.highlightPopularHero ?? true
+  const highlightLatest = settingsRow?.highlightLatestHero ?? true
+  const navCollectionsEnabled = settingsRow?.navCollectionsEnabled ?? true
 
-  if (orderError) {
-    console.error("[storefront] Failed to load orders from Supabase", orderError)
-    throw new Error("Failed to load order insights")
-  }
+  const activeCampaigns = (discountCampaignRows ?? []).map((row) => {
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      bannerImage: row.bannerImageUrl,
+      startDate: row.startDate.toISOString(),
+      endDate: row.endDate.toISOString(),
+      isActive: row.isActive,
+      variants: row.variants.map((v) => {
+        const variantRow = v.variant
+        const productRow = variantRow?.product
+        let basePrice = 0
+        if (variantRow?.sizes) {
+          const prices = variantRow.sizes.map(s => s.price)
+          basePrice = prices.length > 0 ? Math.min(...prices) : 0
+        }
 
-  if (categoryError) {
-    console.error("[storefront] Failed to load categories from Supabase", categoryError)
-    throw new Error("Failed to load categories")
-  }
-
-  if (brandError) {
-    console.error("[storefront] Failed to load brands from Supabase", brandError)
-    throw new Error("Failed to load brands")
-  }
-
-  if (settingsError) {
-    console.error("[storefront] Failed to load storefront settings", settingsError)
-  }
-
-  if (discountCampaignError) {
-    console.error("[storefront] Failed to load discount campaigns", discountCampaignError)
-  }
-
-  const highlightPopular = settingsRow?.highlight_popular_hero ?? true
-  const highlightLatest = settingsRow?.highlight_latest_hero ?? true
-  const navCollectionsEnabled =
-    typeof settingsRow?.nav_collections_enabled === "boolean" ? settingsRow.nav_collections_enabled : true
-  const discountCampaigns =
-    (discountCampaignRows as DiscountCampaignRowWithVariants[] | null)?.map((row) => mapDiscountCampaignRow(row)) ?? []
+        return {
+          id: v.id,
+          campaignId: v.campaignId,
+          variantId: v.variantId,
+          productId: productRow?.id ?? 0,
+          productName: productRow?.name ?? "Unknown",
+          variantLabel: variantRow?.color ?? variantRow?.sku ?? null,
+          sku: variantRow?.sku ?? null,
+          color: variantRow?.color ?? null,
+          image: variantRow?.imageUrl ?? productRow?.imageUrl ?? PLACEHOLDER_IMAGE,
+          basePrice,
+          discountPercent: v.discountPercent,
+          createdAt: v.createdAt?.toISOString(),
+          updatedAt: v.updatedAt?.toISOString(),
+        }
+      }),
+      createdAt: row.createdAt?.toISOString(),
+      updatedAt: row.updatedAt?.toISOString(),
+    }
+  })
 
   const UNBRANDED_BRAND_ID = -1
   const UNBRANDED_LABEL = "Unbranded"
 
-  const productEntries = ((productRows ?? []) as ProductRowWithVariants[]).map((row) => mapProductRowToProduct(row))
-  const productMap = new Map<number, ReturnType<typeof mapProductRowToProduct>>()
+  const productMap = new Map<number, any>()
   const productCategoryMap = new Map<number, Set<number>>()
   const brandProductMap = new Map<number, Set<number>>()
 
-  for (const product of productEntries) {
+  for (const product of productRows) {
     productMap.set(product.id, product)
 
-    for (const category of product.categories ?? []) {
-      if (typeof category.id !== "number") continue
-      if (!productCategoryMap.has(category.id)) {
-        productCategoryMap.set(category.id, new Set<number>())
+    for (const pc of product.productCategories) {
+      const cat = pc.category
+      if (!cat) continue
+      if (!productCategoryMap.has(cat.id)) {
+        productCategoryMap.set(cat.id, new Set<number>())
       }
-      productCategoryMap.get(category.id)!.add(product.id)
+      productCategoryMap.get(cat.id)!.add(product.id)
     }
 
-    const brandId = typeof product.brand?.id === "number" ? product.brand.id : UNBRANDED_BRAND_ID
+    const brandId = product.brandId ?? UNBRANDED_BRAND_ID
     if (!brandProductMap.has(brandId)) {
       brandProductMap.set(brandId, new Set<number>())
     }
@@ -538,36 +603,30 @@ export async function getCatalogData(): Promise<CatalogData> {
   const categoryNameMap = new Map<number, string>()
   const brandNameMap = new Map<number, string>()
 
-  for (const category of categoryRows ?? []) {
-    if (!category) continue
-    if (category.name && category.name.trim().length > 0) {
-      const name = category.name.trim()
+  for (const cat of categoryRows) {
+    const name = (cat.name ?? "").trim()
+    if (name) {
       categoryFilterNames.add(name)
-      categoryNameMap.set(category.id, name)
+      categoryNameMap.set(cat.id, name)
+    }
+  }
+
+  for (const b of brandRows) {
+    const name = (b.name ?? "").trim()
+    if (name) {
+      brandNameMap.set(b.id, name)
     }
   }
 
   const productSales = new Map<number, number>()
-  const orders = (orderRows ?? []) as OrderRow[]
-
-  for (const order of orders) {
-    const items = Array.isArray(order.order_items) ? (order.order_items as any[]) : []
-
+  for (const order of orderRows) {
+    const items = Array.isArray(order.orderItems) ? (order.orderItems as any[]) : []
     for (const item of items) {
       if (!item) continue
       const productId = Number(item.productId ?? item.id ?? 0)
       const quantity = Number(item.quantity ?? 0)
-
-      if (!Number.isFinite(productId) || productId <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
-        continue
-      }
-
-      productSales.set(productId, (productSales.get(productId) ?? 0) + quantity)
-
-      const product = productMap.get(productId)
-      if (!product) continue
-      for (const category of product.categories ?? []) {
-        if (typeof category.id !== "number") continue
+      if (productId > 0 && quantity > 0) {
+        productSales.set(productId, (productSales.get(productId) ?? 0) + quantity)
       }
     }
   }
@@ -575,25 +634,23 @@ export async function getCatalogData(): Promise<CatalogData> {
   const variants: CatalogVariant[] = []
   const brandNames = new Set<string>()
 
-  for (const product of productEntries) {
-    const categories = product.categories?.map((category) => category.name) ?? []
+  for (const product of productRows) {
+    const categoriesList = product.productCategories.map(pc => pc.category?.name).filter(Boolean) as string[]
     const brandName = product.brand?.name ?? null
-    if (brandName && brandName.trim().length > 0) {
-      brandNames.add(brandName.trim())
-    }
+    if (brandName) brandNames.add(brandName.trim())
 
-    const activeVariants = getActiveVariants(product)
+    const activeVariants = product.variants.filter(v => v.isActive)
     for (const variant of activeVariants) {
-      const sizeEntries = variant.sizes.map((entry) => ({
-        label: entry.size && entry.size.trim().length > 0 ? entry.size.trim() : "Default",
-        price: Number(entry.price),
-        stock: Number(entry.stock),
+      const sizeEntries = variant.sizes.map(s => ({
+        label: (s.size ?? "Default").trim(),
+        price: s.price,
+        stock: s.stockQuantity,
       }))
 
-      const prices = sizeEntries.map((entry) => entry.price).filter((price) => Number.isFinite(price))
-      const minPrice = prices.length > 0 ? Math.min(...prices) : Number(variant.price ?? 0)
-      const maxPrice = prices.length > 0 ? Math.max(...prices) : Number(variant.price ?? 0)
-      const totalStock = sizeEntries.reduce((sum, entry) => sum + (Number.isFinite(entry.stock) ? entry.stock : 0), 0)
+      const prices = sizeEntries.map(s => s.price)
+      const minPrice = prices.length > 0 ? Math.min(...prices) : 0
+      const maxPrice = prices.length > 0 ? Math.max(...prices) : minPrice
+      const totalStock = sizeEntries.reduce((sum, s) => sum + s.stock, 0)
       const detailPath = `/shop/${createVariantSlug(variant.id, product.name, variant.color ?? variant.sku ?? null)}`
 
       variants.push({
@@ -602,446 +659,211 @@ export async function getCatalogData(): Promise<CatalogData> {
         productName: product.name,
         variantLabel: variant.color ?? variant.sku ?? null,
         displayName: buildVariantDisplayName(product.name, variant.color ?? null, variant.sku ?? null),
-        image: pickProductLeadImage(product.image, [variant.image, product.image]),
-        description: variant.description ?? null,
+        image: pickProductLeadImage(product.imageUrl || PLACEHOLDER_IMAGE, [variant.imageUrl ?? undefined]),
+        description: variant.description,
         brandName,
-        categories,
+        categories: categoriesList,
         sizes: sizeEntries,
         minPrice,
         maxPrice,
         totalStock,
         detailPath,
-        isPreorder: Boolean(variant.isPreorder),
+        isPreorder: variant.isPreorder,
       })
     }
   }
 
-  const allPrices = variants.flatMap((variant) => variant.sizes.map((entry) => entry.price).filter(Number.isFinite))
+  const allPrices = variants.flatMap(v => v.sizes.map(s => s.price))
   const priceMin = allPrices.length > 0 ? Math.floor(Math.min(...allPrices)) : 0
   const priceMax = allPrices.length > 0 ? Math.ceil(Math.max(...allPrices)) : priceMin
 
   let popularProductHighlight: HeroProductHighlight | null = null
   let latestProductHighlight: HeroProductHighlight | null = null
   const manualProductHighlights: HeroProductHighlight[] = []
-  const manualProductIdSet = new Set<number>()
   const heroImageExclusions = new Set<string>()
   let highlightedPopularProductId: number | null = null
 
-  if (productEntries.length > 0) {
-    const productsBySales = [...productEntries].sort((a, b) => {
-      const salesA = productSales.get(a.id) ?? 0
-      const salesB = productSales.get(b.id) ?? 0
-      if (salesB !== salesA) return salesB - salesA
-      return (b.stock ?? 0) - (a.stock ?? 0)
-    })
-
-    const topProduct = productsBySales[0] ?? null
+  if (productRows.length > 0) {
+    const sortedBySales = [...productRows].sort((a, b) => (productSales.get(b.id) ?? 0) - (productSales.get(a.id) ?? 0))
+    const topProduct = sortedBySales[0]
     if (topProduct) {
       const totalSold = productSales.get(topProduct.id) ?? 0
-      const topCategoryName = topProduct.categories?.[0]?.name
-      const heroImage = pickProductLeadImage(topProduct.image, getActiveVariantImages(topProduct))
+      const topCategoryName = topProduct.productCategories[0]?.category?.name
+      const heroImage = pickProductLeadImage(topProduct.imageUrl || PLACEHOLDER_IMAGE, topProduct.variants.map(v => v.imageUrl ?? undefined))
 
       popularProductHighlight = {
         id: topProduct.id,
         productId: topProduct.id,
         title: topProduct.name,
-        subtitle: formatSoldSubtitle(totalSold, topCategoryName),
+        subtitle: formatSoldSubtitle(totalSold, topCategoryName ?? undefined),
         image: heroImage,
         href: `/catalog?q=${encodeURIComponent(topProduct.name)}`,
-        accent: topProduct.brand?.name ?? topCategoryName ?? undefined,
+        accent: topProduct.brand?.name ?? (topCategoryName || undefined),
       }
       highlightedPopularProductId = topProduct.id
-
-      if (highlightPopular) {
-        heroImageExclusions.add(heroImage)
-      }
+      if (highlightPopular) heroImageExclusions.add(heroImage)
     }
 
-    const productsByRecency = [...productEntries].sort((a, b) => {
-      const createdA = a.createdAt ?? ""
-      const createdB = b.createdAt ?? ""
-      if (createdA === createdB) return 0
-      return createdA > createdB ? -1 : 1
-    })
-
-    const latestProduct =
-      productsByRecency.find((product) => (highlightedPopularProductId === null ? true : product.id !== highlightedPopularProductId)) ??
-      productsByRecency[0] ??
-      null
+    const sortedByRecency = [...productRows].sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+    const latestProduct = sortedByRecency.find(p => p.id !== highlightedPopularProductId) || sortedByRecency[0]
     if (latestProduct) {
-      const latestCategoryName = latestProduct.categories?.[0]?.name
-      const heroImage = pickProductLeadImage(latestProduct.image, getActiveVariantImages(latestProduct))
+      const latestCategoryName = latestProduct.productCategories[0]?.category?.name
+      const heroImage = pickProductLeadImage(latestProduct.imageUrl || PLACEHOLDER_IMAGE, latestProduct.variants.map(v => v.imageUrl ?? undefined))
 
       latestProductHighlight = {
         id: latestProduct.id,
         productId: latestProduct.id,
         title: latestProduct.name,
-        subtitle: formatRecentSubtitle(latestProduct.createdAt, latestCategoryName),
+        subtitle: formatRecentSubtitle(latestProduct.createdAt?.toISOString(), latestCategoryName ?? undefined),
         image: heroImage,
         href: `/catalog?q=${encodeURIComponent(latestProduct.name)}`,
-        accent: latestProduct.brand?.name ?? latestCategoryName ?? undefined,
+        accent: latestProduct.brand?.name ?? (latestCategoryName || undefined),
       }
-
-      if (highlightLatest) {
-        heroImageExclusions.add(heroImage)
-      }
+      if (highlightLatest) heroImageExclusions.add(heroImage)
     }
   }
 
-  const manualProductIds = Array.isArray(settingsRow?.home_banner_manual_product_ids)
-    ? (settingsRow?.home_banner_manual_product_ids as unknown[])
-    : []
+  const manualIds = Array.isArray(settingsRow?.homeBannerManualProductIds) ? settingsRow!.homeBannerManualProductIds as any[] : []
+  for (const entry of manualIds) {
+    const pid = Number(entry)
+    const product = productMap.get(pid)
+    if (!product) continue
 
-  for (const entry of manualProductIds) {
-    const productId = Number(entry)
-    if (!Number.isInteger(productId) || productId <= 0 || manualProductIdSet.has(productId)) {
-      continue
-    }
-
-    const product = productMap.get(productId)
-    if (!product) {
-      continue
-    }
-
-    const topCategoryName = product.categories?.[0]?.name
-    const heroImage = pickProductLeadImage(product.image, getActiveVariantImages(product), {
-      exclude: heroImageExclusions,
-    })
-
+    const heroImage = pickProductLeadImage(product.imageUrl || PLACEHOLDER_IMAGE, product.variants.map((v: any) => v.imageUrl ?? undefined), { exclude: heroImageExclusions })
     heroImageExclusions.add(heroImage)
-    manualProductIdSet.add(product.id)
-
-    const totalSold = productSales.get(product.id) ?? 0
-    const subtitle =
-      totalSold > 0
-        ? formatSoldSubtitle(totalSold, topCategoryName)
-        : formatRecentSubtitle(product.createdAt, topCategoryName)
 
     manualProductHighlights.push({
       id: product.id,
       productId: product.id,
       title: product.name,
-      subtitle,
+      subtitle: formatRecentSubtitle(product.createdAt?.toISOString(), product.productCategories[0]?.category?.name),
       image: heroImage,
       href: `/catalog?q=${encodeURIComponent(product.name)}`,
-      accent: product.brand?.name ?? topCategoryName ?? undefined,
+      accent: product.brand?.name ?? product.productCategories[0]?.category?.name,
     })
   }
 
-  const discountPromotion = buildDiscountPromotion(discountCampaigns)
+  const discountPromotion = buildDiscountPromotion(activeCampaigns)
   const discountPercentMap = new Map<number, number>()
   if (discountPromotion) {
-    const featuredCampaign = discountCampaigns.find((campaign) => campaign.id === discountPromotion.campaignId)
-    if (featuredCampaign) {
-      for (const variant of featuredCampaign.variants ?? []) {
-        const variantId = Number(variant.variantId)
-        const percent = Number(variant.discountPercent)
-        if (!Number.isInteger(variantId) || variantId <= 0) continue
-        if (!Number.isFinite(percent) || percent <= 0) continue
-        discountPercentMap.set(variantId, percent)
+    const feat = activeCampaigns.find(c => c.id === discountPromotion.discountCampaignId)
+    if (feat) {
+      for (const v of feat.variants) {
+        discountPercentMap.set(v.variantId, v.discountPercent)
       }
     }
   }
 
-  const campaignSlide = discountPromotion?.slide
-  const discountFilter =
-    discountPromotion && discountPromotion.variantIds.length > 0
-      ? {
-        campaignId: discountPromotion.campaignId,
-        name: discountPromotion.campaignName,
-        description: discountPromotion.description,
-        variantIds: discountPromotion.variantIds,
-      }
-      : undefined
-
-  if (discountPercentMap.size > 0) {
-    for (const variant of variants) {
-      const percent = discountPercentMap.get(variant.id)
-      if (typeof percent === "number") {
-        variant.discountPercent = percent
-      }
-    }
-  }
-
-  if (campaignSlide) {
-    heroImageExclusions.add(campaignSlide.image)
+  for (const variant of variants) {
+    const pct = discountPercentMap.get(variant.id)
+    if (pct) variant.discountPercent = pct
   }
 
   const heroSlides: HeroProductHighlight[] = []
-  const usedProductIds = new Set<number>()
-
-  if (campaignSlide) {
-    heroSlides.push(campaignSlide)
-    if (typeof campaignSlide.productId === "number") {
-      usedProductIds.add(campaignSlide.productId)
-    }
+  const usedIds = new Set<number>()
+  if (discountPromotion?.slide) {
+    heroSlides.push(discountPromotion.slide)
+    if (discountPromotion.slide.productId) usedIds.add(discountPromotion.slide.productId)
   }
-
-  for (const manualHighlight of manualProductHighlights) {
-    heroSlides.push(manualHighlight)
-    if (typeof manualHighlight.productId === "number") {
-      usedProductIds.add(manualHighlight.productId)
-    }
+  for (const m of manualProductHighlights) {
+    heroSlides.push(m)
+    if (m.productId) usedIds.add(m.productId)
   }
-
-  if (
-    highlightPopular &&
-    popularProductHighlight &&
-    !usedProductIds.has(popularProductHighlight.productId ?? popularProductHighlight.id)
-  ) {
+  if (highlightPopular && popularProductHighlight && !usedIds.has(popularProductHighlight.productId!)) {
     heroSlides.push(popularProductHighlight)
-    usedProductIds.add(popularProductHighlight.productId ?? popularProductHighlight.id)
+    usedIds.add(popularProductHighlight.productId!)
   }
-
-  if (
-    highlightLatest &&
-    latestProductHighlight &&
-    !usedProductIds.has(latestProductHighlight.productId ?? latestProductHighlight.id)
-  ) {
+  if (highlightLatest && latestProductHighlight && !usedIds.has(latestProductHighlight.productId!)) {
     heroSlides.push(latestProductHighlight)
-    usedProductIds.add(latestProductHighlight.productId ?? latestProductHighlight.id)
+    usedIds.add(latestProductHighlight.productId!)
   }
 
-  const buildTileSummary = ({
-    id,
-    name,
-    productIds,
-    href,
-    kind,
-  }: {
-    id: number
-    name: string
-    productIds: number[]
-    href: string
-    kind: CollectionTileKind
-  }): CollectionTile | null => {
+  const buildTileSummary = ({ id, name, productIds, href, kind }: { id: number, name: string, productIds: number[], href: string, kind: CollectionTileKind }): CollectionTile | null => {
     if (productIds.length === 0) return null
-
-    const productCount = productIds.length
     let totalSold = 0
     let totalVariants = 0
+    let bestPid: number | null = null
+    let maxS = -1
 
-    let bestProductId: number | null = null
-    let bestSales = -1
-    let bestVariantCount = -1
-    let newestCreatedAt: string | null = null
-
-    for (const productId of productIds) {
-      const sales = productSales.get(productId) ?? 0
-      totalSold += sales
-      const product = productMap.get(productId)
-      if (!product) continue
-
-      const activeVariantCount = getActiveVariants(product).length
-      totalVariants += activeVariantCount
-      const createdAt = product.createdAt ?? ""
-
-      let isBetter = false
-      if (sales > bestSales) {
-        isBetter = true
-      } else if (sales === bestSales) {
-        if (activeVariantCount > bestVariantCount) {
-          isBetter = true
-        } else if (activeVariantCount === bestVariantCount) {
-          if (!newestCreatedAt || (createdAt && createdAt > newestCreatedAt)) {
-            isBetter = true
-          }
-        }
-      }
-
-      if (isBetter) {
-        bestProductId = productId
-        bestSales = sales
-        bestVariantCount = activeVariantCount
-        newestCreatedAt = createdAt || null
+    for (const pid of productIds) {
+      const s = productSales.get(pid) ?? 0
+      totalSold += s
+      const p = productMap.get(pid)
+      if (!p) continue
+      totalVariants += p.variants.filter((v: any) => v.isActive).length
+      if (s > maxS) {
+        maxS = s
+        bestPid = pid
       }
     }
 
-    if (bestProductId === null && productIds.length > 0) {
-      bestProductId = productIds[0] ?? null
+    let img = PLACEHOLDER_IMAGE
+    if (bestPid) {
+      const p = productMap.get(bestPid)
+      img = pickProductLeadImage(p.imageUrl || PLACEHOLDER_IMAGE, p.variants.map((v: any) => v.imageUrl ?? undefined), { exclude: heroImageExclusions })
     }
 
-    let leadImage = PLACEHOLDER_IMAGE
-    if (bestProductId !== null) {
-      const leadProduct = productMap.get(bestProductId)
-      if (leadProduct) {
-        leadImage = pickProductLeadImage(leadProduct.image, getActiveVariantImages(leadProduct), {
-          exclude: heroImageExclusions,
-        })
-      }
-    }
-
-    return {
-      id,
-      name,
-      image: leadImage,
-      href,
-      totalSold,
-      productCount,
-      variantCount: totalVariants,
-      kind,
-    }
-  }
-
-  const tileSortComparator = (a: CollectionTile, b: CollectionTile) => {
-    if (b.totalSold !== a.totalSold) return b.totalSold - a.totalSold
-    if (b.productCount !== a.productCount) return b.productCount - a.productCount
-    return a.name.localeCompare(b.name)
+    return { id, name, image: img, href, totalSold, productCount: productIds.length, variantCount: totalVariants, kind }
   }
 
   const brandSummaries: CollectionTile[] = []
-  const processedBrandIds = new Set<number>()
-
-  const resolveBrandName = (brandId: number): string => {
-    if (brandId === UNBRANDED_BRAND_ID) return UNBRANDED_LABEL
-    return brandNameMap.get(brandId) ?? `Brand ${brandId}`
-  }
-
-  const buildBrandSummary = (brandId: number, displayName: string) => {
-    const productIds = Array.from(brandProductMap.get(brandId) ?? [])
+  for (const b of brandRows) {
     const tile = buildTileSummary({
-      id: brandId,
-      name: displayName,
-      productIds,
-      href: `/catalog?brand=${encodeURIComponent(displayName)}`,
-      kind: "brand",
+      id: b.id,
+      name: b.name,
+      productIds: Array.from(brandProductMap.get(b.id) ?? []),
+      href: `/catalog?brand=${encodeURIComponent(b.name)}`,
+      kind: "brand"
     })
-    if (tile) {
-      brandSummaries.push(tile)
-    }
+    if (tile) brandSummaries.push(tile)
   }
-
-  for (const brand of brandRows ?? []) {
-    if (!brand) continue
-    const name = typeof brand.name === "string" ? brand.name.trim() : ""
-    if (name.length === 0) continue
-    brandNameMap.set(brand.id, name)
-    processedBrandIds.add(brand.id)
-    buildBrandSummary(brand.id, name)
+  if (brandProductMap.has(UNBRANDED_BRAND_ID)) {
+    const tile = buildTileSummary({
+      id: UNBRANDED_BRAND_ID,
+      name: UNBRANDED_LABEL,
+      productIds: Array.from(brandProductMap.get(UNBRANDED_BRAND_ID)!),
+      href: `/catalog?brand=${encodeURIComponent(UNBRANDED_LABEL)}`,
+      kind: "brand"
+    })
+    if (tile) brandSummaries.push(tile)
   }
-
-  for (const [brandId] of brandProductMap) {
-    if (processedBrandIds.has(brandId)) continue
-    const name = resolveBrandName(brandId)
-    buildBrandSummary(brandId, name)
-  }
-
-  brandSummaries.sort(tileSortComparator)
+  brandSummaries.sort((a, b) => b.totalSold - a.totalSold)
 
   const categorySummaries: CollectionTile[] = []
-  const processedCategoryIds = new Set<number>()
-
-  const resolveCategoryName = (categoryId: number): string => {
-    return categoryNameMap.get(categoryId) ?? `Category ${categoryId}`
-  }
-
-  const buildCategorySummary = (categoryId: number, displayName: string) => {
-    const productIds = Array.from(productCategoryMap.get(categoryId) ?? [])
+  for (const c of categoryRows) {
     const tile = buildTileSummary({
-      id: categoryId,
-      name: displayName,
-      productIds,
-      href: `/catalog?category=${encodeURIComponent(displayName)}`,
-      kind: "category",
+      id: c.id,
+      name: c.name,
+      productIds: Array.from(productCategoryMap.get(c.id) ?? []),
+      href: `/catalog?category=${encodeURIComponent(c.name)}`,
+      kind: "category"
     })
-    if (tile) {
-      categorySummaries.push(tile)
-    }
+    if (tile) categorySummaries.push(tile)
   }
+  categorySummaries.sort((a, b) => b.totalSold - a.totalSold)
 
-  for (const category of categoryRows ?? []) {
-    if (!category) continue
-    const name = typeof category.name === "string" ? category.name.trim() : ""
-    if (name.length === 0) continue
-    processedCategoryIds.add(category.id)
-    buildCategorySummary(category.id, name)
-  }
-
-  for (const [categoryId] of productCategoryMap) {
-    if (processedCategoryIds.has(categoryId)) continue
-    const name = resolveCategoryName(categoryId)
-    buildCategorySummary(categoryId, name)
-  }
-
-  categorySummaries.sort(tileSortComparator)
-
-  const topBrands = brandSummaries.slice(0, 4)
-  const topCategories = categorySummaries.slice(0, 4)
-
-  const normalizeTileMode = (value: string | null | undefined): CollectionTileMode => {
-    if (typeof value !== "string") return "brands"
-    const normalized = value.trim().toLowerCase()
-    if (normalized === "categories" || normalized === "category") {
-      return "categories"
-    }
-    if (normalized === "brands" || normalized === "brand") {
-      return "brands"
-    }
-    return "brands"
-  }
-
-  const tileMode = normalizeTileMode(settingsRow?.home_collection_mode)
-  const activeTiles = tileMode === "categories" ? topCategories : topBrands
-
-  const navBrands: NavCollectionItem[] = brandSummaries
-    .map((brand) => ({
-      id: brand.id,
-      name: brand.name,
-      image: brand.image,
-      href: brand.href,
-      kind: "brand" as const,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-
-  const navCategories: NavCollectionItem[] = categorySummaries
-    .map((category) => ({
-      id: category.id,
-      name: category.name,
-      image: category.image,
-      href: category.href,
-      kind: "category" as const,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-
-  const navItems = navCollectionsEnabled ? (tileMode === "categories" ? navCategories : navBrands) : []
-
-  const categoryFilters = ["All", ...Array.from(categoryFilterNames).sort((a, b) => a.localeCompare(b))]
-
-  const brandFilterEntries = Array.from(brandNames)
-    .map((name) => name.trim())
-    .filter((name) => name.length > 0 && name.localeCompare(UNBRANDED_LABEL, undefined, { sensitivity: "accent" }) !== 0)
-    .sort((a, b) => a.localeCompare(b))
-
-  const hasUnbrandedVariants = variants.some(
-    (variant) => !variant.brandName || variant.brandName.trim().length === 0,
-  )
-  if (hasUnbrandedVariants) {
-    brandFilterEntries.unshift(UNBRANDED_LABEL)
-  }
-  const brandFilters = ["All", ...brandFilterEntries]
-
-  const priceRange: [number, number] = [priceMin, priceMax]
+  const tileMode = (settingsRow?.homeCollectionMode === "category" || settingsRow?.homeCollectionMode === "categories") ? "categories" : "brands"
 
   return {
-    navItems,
-    navBrands,
-    navCategories,
+    navItems: navCollectionsEnabled ? (tileMode === "categories" ? categorySummaries.map(c => ({ ...c, href: c.href })) : brandSummaries.map(b => ({ ...b, href: b.href }))) : [],
+    navBrands: brandSummaries.map(b => ({ id: b.id, name: b.name, image: b.image, href: b.href, kind: "brand" })),
+    navCategories: categorySummaries.map(c => ({ id: c.id, name: c.name, image: c.image, href: c.href, kind: "category" })),
     tileMode,
-    tiles: activeTiles,
-    brandTiles: topBrands,
-    categoryTiles: topCategories,
-    hero: {
-      popular: popularProductHighlight,
-      latest: latestProductHighlight,
-      featured: manualProductHighlights,
-      slides: heroSlides,
-    },
-    discountFilter,
+    tiles: tileMode === "categories" ? categorySummaries.slice(0, 4) : brandSummaries.slice(0, 4),
+    brandTiles: brandSummaries.slice(0, 4),
+    categoryTiles: categorySummaries.slice(0, 4),
+    hero: { popular: popularProductHighlight, latest: latestProductHighlight, featured: manualProductHighlights, slides: heroSlides },
+    discountFilter: discountPromotion && discountPromotion.variantIds.length > 0 ? {
+      campaignId: discountPromotion.discountCampaignId,
+      name: discountPromotion.slide.title,
+      description: discountPromotion.slide.subtitle,
+      variantIds: discountPromotion.variantIds,
+    } : undefined,
     variants,
-    discountCampaigns,
-    categoryFilters,
-    brandFilters,
-    priceRange,
+    discountCampaigns: activeCampaigns,
+    categoryFilters: ["All", ...Array.from(categoryFilterNames).sort()],
+    brandFilters: ["All", ...Array.from(brandNames).sort()],
+    priceRange: [priceMin, priceMax],
   }
 }
 
@@ -1051,51 +873,35 @@ function normalizeStringValue(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-export async function getVariantDetail(variantId: number): Promise<VariantDetailData | null> {
+export async function getVariantDetail(db: DbClient, projectId: string, variantId: number): Promise<VariantDetailData | null> {
   if (!Number.isFinite(variantId) || variantId <= 0) {
     return null
   }
 
-  const supabase = getSupabaseServiceRoleClient()
+  const variant = await db.query.productVariants.findFirst({
+    where: and(eq(productVariants.id, variantId)),
+    with: {
+      sizes: true,
+      product: {
+        with: {
+          brand: true,
+          productCategories: { with: { category: true } },
+          variants: {
+            where: eq(productVariants.isActive, true),
+            with: { sizes: true }
+          }
+        }
+      }
+    }
+  })
 
-  const { data: variantMeta, error: variantMetaError } = await supabase
-    .from("product_variants")
-    .select("id, product_id")
-    .eq("id", variantId)
-    .maybeSingle()
-
-  if (variantMetaError) {
-    console.error("[storefront] Failed to lookup variant metadata", variantMetaError)
-    throw new Error("Failed to lookup product variant")
-  }
-
-  if (!variantMeta || typeof variantMeta.product_id !== "number") {
+  if (!variant || !variant.product || variant.product.projectId !== projectId) {
     return null
   }
 
-  const productId = variantMeta.product_id
-  const { data: productRow, error: productError } = await supabase
-    .from("products")
-    .select(PRODUCT_SELECT_FIELDS)
-    .eq("id", productId)
-    .maybeSingle()
-
-  if (productError) {
-    console.error("[storefront] Failed to load product for variant", productError)
-    throw new Error("Failed to load product for variant")
-  }
-
-  if (!productRow) {
-    return null
-  }
-
-  const product = mapProductRowToProduct(productRow as ProductRowWithVariants)
-  const activeVariants = getActiveVariants(product)
-  const targetVariant = activeVariants.find((entry) => entry.id === variantId)
-
-  if (!targetVariant) {
-    return null
-  }
+  const product = variant.product
+  const activeVariants = product.variants
+  const targetVariant = variant
 
   const sizeOptions: VariantDetailSizeOption[] = targetVariant.sizes.map((entry) => {
     const normalizedSize = normalizeStringValue(entry.size ?? null)
@@ -1104,7 +910,7 @@ export async function getVariantDetail(variantId: number): Promise<VariantDetail
       size: normalizedSize,
       label,
       price: Number(entry.price),
-      stock: Number(entry.stock),
+      stock: entry.stockQuantity,
     }
   })
 
@@ -1116,7 +922,7 @@ export async function getVariantDetail(variantId: number): Promise<VariantDetail
     0,
   )
 
-  const productCategories = product.categories.map((category) => category.name).filter((name) => name.length > 0)
+  const productCategories = product.productCategories.map((pc) => pc.category?.name).filter((name): name is string => Boolean(name))
   const brandName = product.brand?.name ?? null
   const variantLabel = targetVariant.color ?? targetVariant.sku ?? null
   const displayName = buildVariantDisplayName(product.name, targetVariant.color ?? null, targetVariant.sku ?? null)
@@ -1131,17 +937,13 @@ export async function getVariantDetail(variantId: number): Promise<VariantDetail
     gallery.push(normalized)
   }
 
-  const variantImages = Array.isArray(targetVariant.images) ? targetVariant.images : []
-  if (variantImages.length > 0) {
-    for (const image of variantImages) {
-      pushGalleryImage(image)
-    }
-  } else {
-    pushGalleryImage(targetVariant.image ?? null)
+  if (targetVariant.imageUrl) {
+    pushGalleryImage(targetVariant.imageUrl)
   }
 
+  // Try to find more images from sizes if needed, but usually it's in imageUrl
   if (gallery.length === 0) {
-    pushGalleryImage(product.image ?? null)
+    pushGalleryImage(product.imageUrl)
   }
 
   if (gallery.length === 0) {
@@ -1158,19 +960,8 @@ export async function getVariantDetail(variantId: number): Promise<VariantDetail
       product.name,
       entry.color ?? entry.sku ?? null,
     )}`
-    const siblingSources: Array<string | null> = [
-      ...(Array.isArray(entry.images) ? entry.images : []),
-      entry.image ?? null,
-      product.image ?? null,
-    ]
-    let siblingImage = PLACEHOLDER_IMAGE
-    for (const value of siblingSources) {
-      const normalized = normalizeStringValue(value)
-      if (normalized) {
-        siblingImage = normalized
-        break
-      }
-    }
+
+    let siblingImage = entry.imageUrl || product.imageUrl || PLACEHOLDER_IMAGE
 
     return {
       id: entry.id,
@@ -1202,7 +993,7 @@ export async function getVariantDetail(variantId: number): Promise<VariantDetail
       image: primaryImage,
       isPreorder: Boolean(targetVariant.isPreorder),
       preorderMessage: targetVariant.preorderMessage ?? null,
-      preorderDownPayment: targetVariant.preorderDownPayment ?? null,
+      preorderDownPayment: null, // Logic needs to be ported if needed
       sizeOptions,
       minPrice,
       maxPrice,

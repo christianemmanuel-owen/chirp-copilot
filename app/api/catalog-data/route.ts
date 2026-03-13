@@ -1,12 +1,21 @@
-import { NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
+import { NextResponse, type NextRequest } from "next/server"
+import { getDb } from "@/lib/db"
+import { ensureTenantId } from "@/lib/db/tenant"
 import { getCatalogData } from "@/lib/storefront-data"
 
-export async function GET() {
+export const runtime = "edge"
+
+export async function GET(req: NextRequest) {
     try {
-        const data = await getCatalogData()
+        const { env } = getRequestContext()
+        const projectId = await ensureTenantId(req, env.DB)
+        const db = getDb(env.DB)
+
+        const data = await getCatalogData(db, projectId)
         return NextResponse.json(data)
     } catch (error) {
-        console.error("[catalog-data][GET] Unexpected error", error)
+        console.error("[api][catalog-data][GET] Unexpected error", error)
         return NextResponse.json({ error: "Failed to load catalog data" }, { status: 500 })
     }
 }

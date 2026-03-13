@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
-
-function ensureAdminAuthenticated(request: NextRequest) {
-    const isAuthenticated = request.cookies.get("admin_auth")?.value === "1"
-    return isAuthenticated
-}
+import { getDb } from "@/lib/db"
+import {
+    instagramConnections,
+    instagramMessages
+} from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, and, desc } from "drizzle-orm"
 
 export interface ConversationListItem {
     conversationId: string
@@ -12,101 +13,88 @@ export interface ConversationListItem {
     participantName: string | null
     participantUsername: string | null
     lastMessage: string | null
-    lastMessageAt: string
+    lastMessageAt: Date
     unreadCount: number
     isFromPage: boolean
 }
 
-/**
- * GET /api/admin/instagram/conversations
- * Returns a list of conversations with latest message info
- */
 export async function GET(request: NextRequest) {
-    if (!ensureAdminAuthenticated(request)) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    try {
+        const d1 = (process.env as any).DB as D1Database
+        if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
-    const supabase = getSupabaseServiceRoleClient()
+        const tenantId = await ensureTenantId(request, d1)
+        const db = getDb(d1)
 
-    // Get active Instagram connection
-    const { data: connection, error: connectionError } = await supabase
-        .from("instagram_connections")
-        .select("id, instagram_business_account_id")
-        .eq("status", "connected")
-        .order("connected_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-    if (connectionError) {
-        console.error("[instagram][conversations] Failed to fetch connection", connectionError)
-        return NextResponse.json({ error: "Failed to fetch Instagram connection" }, { status: 500 })
-    }
-
-    if (!connection) {
-        return NextResponse.json({ conversations: [], connected: false })
-    }
-
-    // Get distinct conversations with latest message
-    // Using a subquery approach to get the latest message per conversation
-    const { data: messages, error: messagesError } = await supabase
-        .from("instagram_messages")
-        .select("*")
-        .eq("connection_id", connection.id)
-        .order("sent_at", { ascending: false })
-
-    if (messagesError) {
-        console.error("[instagram][conversations] Failed to fetch messages", messagesError)
-        return NextResponse.json({
-            error: "Failed to fetch conversations",
-            details: messagesError.message,
-            code: messagesError.code,
-            hint: messagesError.hint,
-        }, { status: 500 })
-    }
-
-    // Group by conversation and get latest message + participant info
-    const conversationMap = new Map<string, ConversationListItem>()
-
-    for (const msg of messages ?? []) {
-        if (conversationMap.has(msg.conversation_id)) {
-            continue // Already have latest message for this conversation
-        }
-
-        // Find participant (the non-page sender)
-        let participantId = msg.sender_id
-        let participantName = msg.sender_name
-        let participantUsername = msg.sender_username
-
-        // If this message is from the page, look for customer info in other messages
-        if (msg.is_from_page) {
-            const customerMsg = (messages ?? []).find(
-                (m) => m.conversation_id === msg.conversation_id && !m.is_from_page
-            )
-            if (customerMsg) {
-                participantId = customerMsg.sender_id
-                participantName = customerMsg.sender_name
-                participantUsername = customerMsg.sender_username
-            }
-        }
-
-        conversationMap.set(msg.conversation_id, {
-            conversationId: msg.conversation_id,
-            participantId,
-            participantName,
-            participantUsername,
-            lastMessage: msg.message_text,
-            lastMessageAt: msg.sent_at,
-            unreadCount: 0, // TODO: Implement read tracking
-            isFromPage: msg.is_from_page,
+        // Get active Instagram connection for this project
+        const connection = await db.query.instagramConnections.findFirst({
+            where: and(
+                eq(instagramConnections.projectId, tenantId),
+                eq(instagramConnections.status, "connected")
+            ),
+            orderBy: [desc(instagramConnections.connectedAt)]
         })
+
+        if (!connection) {
+            return NextResponse.json({ conversations: [], connected: false })
+        }
+
+        // Get all messages for this connection
+        const messages = await db.query.instagramMessages.findMany({
+            where: and(
+                eq(instagramMessages.projectId, tenantId),
+                eq(instagramMessages.connectionId, connection.id)
+            ),
+            orderBy: [desc(instagramMessages.sentAt)]
+        })
+
+        // Group by conversation and get latest message + participant info
+        const conversationMap = new Map<string, ConversationListItem>()
+
+        for (const msg of messages ?? []) {
+            if (conversationMap.has(msg.conversationId)) {
+                continue // Already have latest message for this conversation
+            }
+
+            // Find participant (the non-page sender)
+            let participantId = msg.senderId
+            let participantName = msg.senderName
+            let participantUsername = msg.senderUsername
+
+            // If this message is from the page, look for customer info in other messages
+            if (msg.isFromPage) {
+                const customerMsg = messages.find(
+                    (m) => m.conversationId === msg.conversationId && !m.isFromPage
+                )
+                if (customerMsg) {
+                    participantId = customerMsg.senderId
+                    participantName = customerMsg.senderName
+                    participantUsername = customerMsg.senderUsername
+                }
+            }
+
+            conversationMap.set(msg.conversationId, {
+                conversationId: msg.conversationId,
+                participantId,
+                participantName,
+                participantUsername,
+                lastMessage: msg.messageText,
+                lastMessageAt: msg.sentAt,
+                unreadCount: 0,
+                isFromPage: msg.isFromPage,
+            })
+        }
+
+        const conversations = Array.from(conversationMap.values())
+            .sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime())
+
+        return NextResponse.json({
+            conversations,
+            connected: true,
+            connectionId: connection.id,
+        })
+    } catch (error) {
+        console.error("[instagram][conversations] Unexpected error", error)
+        return NextResponse.json({ error: "Unexpected error" }, { status: 500 })
     }
-
-    const conversations = Array.from(conversationMap.values())
-        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
-
-    return NextResponse.json({
-        conversations,
-        connected: true,
-        connectionId: connection.id,
-    })
 }

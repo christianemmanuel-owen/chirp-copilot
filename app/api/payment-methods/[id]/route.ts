@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
-import {
-  mapPaymentMethodRow,
-  mapPaymentMethodUpdateToUpdate,
-} from "@/lib/supabase/transformers"
+import { NextRequest, NextResponse } from "next/server"
+import { getDb } from "@/lib/db"
+import { paymentMethods as paymentMethodsSchema } from "@/lib/db/schema"
+import { ensureTenantId } from "@/lib/db/tenant"
+import { eq, and, ne } from "drizzle-orm"
 import { getPaymentMethodCatalogEntry, isSupportedPaymentProvider } from "@/lib/payment-methods"
 import type { UpdatePaymentMethodInput } from "@/lib/types"
 
@@ -25,9 +24,15 @@ function parseBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
+
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
     const payload = (await request.json()) as Partial<UpdatePaymentMethodInput> | null
 
     if (!id) {
@@ -38,126 +43,89 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "No fields provided for update" }, { status: 400 })
     }
 
-    const updateInput: UpdatePaymentMethodInput = {}
+    const updateData: any = {
+      updatedAt: new Date()
+    }
 
     if (payload.provider !== undefined) {
-      if (typeof payload.provider !== "string") {
-        return NextResponse.json({ error: "Invalid provider value" }, { status: 400 })
-      }
-
-      const provider = normalizeProvider(payload.provider)
+      const provider = normalizeProvider(payload.provider as string)
       if (!isSupportedPaymentProvider(provider) || !getPaymentMethodCatalogEntry(provider)) {
         return NextResponse.json({ error: "Unsupported payment provider" }, { status: 400 })
       }
-      updateInput.provider = provider
+
+      const existing = await db.query.paymentMethods.findFirst({
+        where: and(
+          eq(paymentMethodsSchema.projectId, tenantId),
+          eq(paymentMethodsSchema.provider, provider),
+          ne(paymentMethodsSchema.id, id)
+        )
+      })
+
+      if (existing) {
+        return NextResponse.json({ error: "Payment provider already configured" }, { status: 409 })
+      }
+      updateData.provider = provider
     }
 
     if (payload.qrCodeUrl !== undefined) {
-      if (payload.qrCodeUrl === null) {
-        updateInput.qrCodeUrl = null
-      } else if (typeof payload.qrCodeUrl === "string") {
-        const trimmed = payload.qrCodeUrl.trim()
-        updateInput.qrCodeUrl = trimmed.length > 0 ? trimmed : null
-      } else {
-        return NextResponse.json({ error: "Invalid QR code URL" }, { status: 400 })
-      }
+      updateData.qrCodeUrl = payload.qrCodeUrl?.trim() ?? ""
     }
 
     if (payload.accountName !== undefined) {
-      if (payload.accountName === null) {
-        updateInput.accountName = null
-      } else if (typeof payload.accountName === "string") {
-        updateInput.accountName = payload.accountName.trim().length > 0 ? payload.accountName.trim() : null
-      } else {
-        return NextResponse.json({ error: "Invalid account name" }, { status: 400 })
-      }
+      updateData.accountName = payload.accountName?.trim() ?? null
     }
 
     if (payload.instructions !== undefined) {
-      if (payload.instructions === null) {
-        updateInput.instructions = null
-      } else if (typeof payload.instructions === "string") {
-        updateInput.instructions = payload.instructions.trim().length > 0 ? payload.instructions.trim() : null
-      } else {
-        return NextResponse.json({ error: "Invalid instructions" }, { status: 400 })
-      }
+      updateData.instructions = payload.instructions?.trim() ?? null
     }
 
     if (payload.isActive !== undefined) {
       const parsed = parseBoolean(payload.isActive)
-      if (parsed === undefined) {
-        return NextResponse.json({ error: "Invalid isActive flag" }, { status: 400 })
-      }
-      updateInput.isActive = parsed
+      if (parsed === undefined) return NextResponse.json({ error: "Invalid isActive" }, { status: 400 })
+      updateData.isActive = parsed
     }
 
-    if (Object.keys(updateInput).length === 0) {
-      return NextResponse.json({ error: "No valid fields provided for update" }, { status: 400 })
+    const [updated] = await db.update(paymentMethodsSchema)
+      .set(updateData)
+      .where(and(
+        eq(paymentMethodsSchema.id, id),
+        eq(paymentMethodsSchema.projectId, tenantId)
+      ))
+      .returning()
+
+    if (!updated) {
+      return NextResponse.json({ error: "Payment method not found" }, { status: 404 })
     }
 
-    const supabase = getSupabaseServiceRoleClient()
-
-    if (updateInput.provider) {
-      const { data: existingRows, error: existingError } = await supabase
-        .from("payment_methods")
-        .select("id")
-        .eq("provider", updateInput.provider)
-        .neq("id", id)
-        .limit(1)
-
-      if (existingError) {
-        console.error("[payment-methods][PATCH] Failed to check existing provider", existingError)
-        return NextResponse.json({ error: "Failed to update payment method" }, { status: 500 })
-      }
-
-      if (existingRows && existingRows.length > 0) {
-        return NextResponse.json({ error: "Payment provider already configured" }, { status: 409 })
-      }
-    }
-
-    const updatePayload = mapPaymentMethodUpdateToUpdate(updateInput)
-
-    const { data, error } = await supabase
-      .from("payment_methods")
-      .update(updatePayload)
-      .eq("id", id)
-      .select()
-      .single()
-
-    if (error) {
-      if ((error as { code?: string }).code === "PGRST116") {
-        return NextResponse.json({ error: "Payment method not found" }, { status: 404 })
-      }
-      console.error("[payment-methods][PATCH] Supabase error", error)
-      return NextResponse.json({ error: "Failed to update payment method" }, { status: 500 })
-    }
-
-    const record = mapPaymentMethodRow(data)
-    return NextResponse.json({ data: record })
+    return NextResponse.json({ data: updated })
   } catch (error) {
     console.error("[payment-methods][PATCH] Unexpected error", error)
-    return NextResponse.json({ error: "Unexpected error updating payment method" }, { status: 500 })
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 })
   }
 }
 
-export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params
+    const d1 = (process.env as any).DB as D1Database
+    if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
+
+    const tenantId = await ensureTenantId(request, d1)
+    const db = getDb(d1)
+
     if (!id) {
       return NextResponse.json({ error: "Payment method ID is required" }, { status: 400 })
     }
 
-    const supabase = getSupabaseServiceRoleClient()
-    const { error } = await supabase.from("payment_methods").delete().eq("id", id)
-
-    if (error) {
-      console.error("[payment-methods][DELETE] Supabase error", error)
-      return NextResponse.json({ error: "Failed to delete payment method" }, { status: 500 })
-    }
+    const result = await db.delete(paymentMethodsSchema)
+      .where(and(
+        eq(paymentMethodsSchema.id, id),
+        eq(paymentMethodsSchema.projectId, tenantId)
+      ))
 
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("[payment-methods][DELETE] Unexpected error", error)
-    return NextResponse.json({ error: "Unexpected error deleting payment method" }, { status: 500 })
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 })
   }
 }
