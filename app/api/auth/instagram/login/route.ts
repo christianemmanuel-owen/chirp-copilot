@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { INSTAGRAM_RETURN_TO_COOKIE, INSTAGRAM_STATE_COOKIE } from "@/lib/meta/constants"
 import { buildOAuthState, getRedirectUri, getRequiredScopes } from "@/lib/meta/instagram"
 
-export const runtime = "edge"
 
 export async function GET(request: NextRequest) {
-  const { env } = getRequestContext()
+  const { env } = await getCloudflareContext()
   const appId = (env as any).FACEBOOK_APP_ID
 
   if (!appId) {

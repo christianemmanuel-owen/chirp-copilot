@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { instagramConnections } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, desc } from "drizzle-orm"
 
-export const runtime = "edge"
 
 /**
  * Debug endpoint to check Instagram connection status
  * GET /api/admin/instagram/connection-status
  */
 export async function GET(request: NextRequest) {
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 

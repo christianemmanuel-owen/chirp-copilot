@@ -1,9 +1,8 @@
-export const runtime = "edge"
 import { notFound } from "next/navigation"
 
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { orders as ordersSchema, projects as projectsSchema, storefrontSettings as storefrontSettingsSchema } from "@/lib/db/schema"
 import { getTenantIdFromHeaders } from "@/lib/db/tenant"
@@ -20,7 +19,7 @@ export default async function ReceiptPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const { env } = getRequestContext()
+  const { env } = await getCloudflareContext()
   const d1 = env.DB
   if (!d1) {
     notFound()

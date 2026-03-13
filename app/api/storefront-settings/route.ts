@@ -1,12 +1,11 @@
 import { revalidatePath } from "next/cache"
 import { NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { storefrontSettings as settingsSchema } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq } from "drizzle-orm"
 
-export const runtime = "edge"
 import type { CollectionTileMode } from "@/lib/storefront-data"
 import { PHILIPPINE_REGIONS } from "@/lib/shipping"
 import {
@@ -262,7 +261,7 @@ const buildSuccess = (payload: {
 
 export async function GET(request: Request) {
   try {
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
@@ -337,7 +336,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
 

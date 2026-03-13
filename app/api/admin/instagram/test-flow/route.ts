@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 
-export const runtime = "edge"
 
 /**
  * Test endpoint to verify OAuth flow configuration
  * Visit: http://localhost:3000/api/admin/instagram/test-flow
  */
 export async function GET() {
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const appId = (env as any).FACEBOOK_APP_ID
     const appSecret = (env as any).FACEBOOK_APP_SECRET
     const redirectUri = (env as any).INSTAGRAM_OAUTH_REDIRECT_URI

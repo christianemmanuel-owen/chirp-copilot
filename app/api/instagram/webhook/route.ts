@@ -1,12 +1,11 @@
 
 import { NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { instagramConnections, instagramMessages } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and } from "drizzle-orm"
 
-export const runtime = "edge"
 export const dynamic = "force-dynamic"
 
 async function isValidSignature(secret: string, rawBody: string, headerSignature: string | null) {
@@ -39,7 +38,7 @@ async function isValidSignature(secret: string, rawBody: string, headerSignature
 
 // Webhook verification for Meta
 export async function GET(request: Request) {
-  const { env } = getRequestContext()
+  const { env } = await getCloudflareContext()
   const url = new URL(request.url)
   const mode = url.searchParams.get("hub.mode")
   const verifyToken = url.searchParams.get("hub.verify_token")
@@ -85,7 +84,7 @@ interface WebhookPayload {
 
 // Process incoming Instagram DM webhook events
 export async function POST(request: Request) {
-  const { env } = getRequestContext()
+  const { env } = await getCloudflareContext()
   const appSecret = (env as any).FACEBOOK_APP_SECRET
   if (!appSecret) {
     return NextResponse.json({ error: "App secret not configured" }, { status: 500 })

@@ -1,4 +1,4 @@
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { storefrontSettings } from "@/lib/db/schema"
 import { ensureTenantIdFromHeaders } from "@/lib/db/tenant"
@@ -18,7 +18,7 @@ interface CatalogPreviewPageProps {
 export default async function CatalogPreviewPage({ searchParams }: CatalogPreviewPageProps) {
     const params = await searchParams
     const isPreview = params.preview === "true"
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const db = getDb(env.DB)
     const headersList = await headers()
     const tenantId = await ensureTenantIdFromHeaders(headersList, env.DB)

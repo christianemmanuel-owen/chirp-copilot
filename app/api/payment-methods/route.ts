@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { paymentMethods as paymentMethodsSchema } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
@@ -19,11 +19,10 @@ function normalizeUrl(value: string) {
   return value.trim()
 }
 
-export const runtime = "edge"
 
 export async function GET(request: NextRequest) {
   try {
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
@@ -72,7 +71,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 

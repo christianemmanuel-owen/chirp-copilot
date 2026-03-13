@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { orders as ordersSchema, storefrontSettings } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
@@ -9,7 +9,6 @@ import type { FulfillmentMethod, NewOrderInput } from "@/lib/types"
 import { generateOrderId } from "@/lib/utils"
 import { calculateShippingFee, type ShippingFeeConfig } from "../../../lib/shipping"
 
-export const runtime = "edge"
 
 const TURNSTILE_EXPECTED_ACTION = "checkout_submission"
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
@@ -96,7 +95,7 @@ export async function GET(request: Request) {
     const limitParam = searchParams.get("limit")
     const limit = limitParam ? parseInt(limitParam, 10) : 200
 
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
@@ -128,7 +127,7 @@ export async function POST(request: Request) {
 
     const { captchaToken, ...payload } = rawPayload
 
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })

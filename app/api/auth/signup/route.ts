@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { users, projects, userProjects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import * as bcrypt from "bcrypt-ts"
 
-export const runtime = "edge"
 
 export async function POST(request: Request) {
     try {
@@ -22,7 +21,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
         }
 
-        const { env } = getRequestContext()
+        const { env } = await getCloudflareContext()
         const d1 = env.DB
         if (!d1) {
             return NextResponse.json({ error: "Database binding not found" }, { status: 500 })

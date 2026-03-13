@@ -23,7 +23,7 @@ import "./globals.css"
 import { Suspense } from "react"
 import { Providers } from "@/components/providers"
 import { BUSINESS_NAME } from "@/lib/config"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { storefrontSettings as storefrontSettingsSchema } from "@/lib/db/schema"
 import { getTenantIdFromHeaders } from "@/lib/db/tenant"
@@ -31,7 +31,6 @@ import { eq } from "drizzle-orm"
 import { buildThemeConfig, DEFAULT_THEME_CONFIG, themeConfigToCssVariables } from "@/lib/storefront-theme"
 import { headers } from "next/headers"
 
-export const runtime = "edge"
 
 const DEFAULT_ICON = "/icon.png"
 
@@ -64,7 +63,7 @@ export default async function RootLayout({
   let themeConfig = DEFAULT_THEME_CONFIG
 
   try {
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (d1) {
       const headerList = await headers()

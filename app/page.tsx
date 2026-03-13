@@ -1,6 +1,5 @@
-export const runtime = "edge"
 import { headers } from "next/headers"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { eq } from "drizzle-orm"
 import { getDb } from "@/lib/db"
 import { storefrontSettings } from "@/lib/db/schema"
@@ -22,7 +21,7 @@ export default async function StorefrontHome({ searchParams }: StorefrontHomePro
   const params = await searchParams
   const isPreview = params.preview === "true"
 
-  const { env } = getRequestContext()
+  const { env } = await getCloudflareContext()
   const projectId = await ensureTenantIdFromHeaders(await headers(), env.DB)
   const db = getDb(env.DB)
 

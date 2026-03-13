@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { INSTAGRAM_RETURN_TO_COOKIE, INSTAGRAM_STATE_COOKIE } from "@/lib/meta/constants"
 import { exchangeCodeForLongLivedToken, fetchInstagramPageCandidates, getRedirectUri } from "@/lib/meta/instagram"
 import { getDb } from "@/lib/db"
 import { instagramOAuthSessions } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 
-export const runtime = "edge"
 
 function sanitizeReturnTo(returnTo: string | null | undefined, fallback: string, origin: string) {
   if (!returnTo) {
@@ -60,7 +59,7 @@ export async function GET(request: NextRequest) {
   const errorParam = url.searchParams.get("error")
   const errorDescription = url.searchParams.get("error_description")
 
-  const { env } = getRequestContext()
+  const { env } = await getCloudflareContext()
   const stateCookie = request.cookies.get(INSTAGRAM_STATE_COOKIE)?.value
   const returnToCookie = request.cookies.get(INSTAGRAM_RETURN_TO_COOKIE)?.value
   const isProduction = process.env.NODE_ENV === "production"

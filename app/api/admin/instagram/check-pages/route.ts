@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 
-export const runtime = "edge"
 
 /**
  * Debug endpoint to check what Facebook Pages and Instagram accounts are accessible

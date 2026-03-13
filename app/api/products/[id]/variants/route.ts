@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { products as productsSchema, productVariants, variantSizes } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and } from "drizzle-orm"
 import { parseDownPaymentRequest, type DownPaymentRequest } from "./down-payment"
 
-export const runtime = "edge"
 
 function parseProductId(value: string) {
   const numericId = Number(value)
@@ -48,7 +47,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: "Missing variant payload" }, { status: 400 })
     }
 
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })

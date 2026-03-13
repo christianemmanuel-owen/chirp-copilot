@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { brands as brandsSchema } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and } from "drizzle-orm"
 
-export const runtime = "edge"
 
 function parseId(value: string) {
   const numeric = Number(value)
@@ -32,7 +31,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "Brand name is required" }, { status: 400 })
     }
 
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })
@@ -85,7 +84,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     const { id: idParam } = await context.params
     const id = parseId(idParam)
 
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) {
       return NextResponse.json({ error: "Database binding not found" }, { status: 500 })

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { paymentMethods as paymentMethodsSchema } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
@@ -25,12 +25,11 @@ function parseBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
-export const runtime = "edge"
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
@@ -111,7 +110,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 

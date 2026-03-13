@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { orders, productVariants, variantSizes } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and, sql } from "drizzle-orm"
 import type { OrderStatus } from "@/lib/types"
 
-export const runtime = "edge"
 
 const ORDER_STATUS_VALUES: OrderStatus[] = [
   "For Evaluation",
@@ -29,7 +28,7 @@ function isValidStatus(value: string): value is OrderStatus {
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 
@@ -64,7 +63,7 @@ interface OrderUpdatePayload {
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const d1 = env.DB
     if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 

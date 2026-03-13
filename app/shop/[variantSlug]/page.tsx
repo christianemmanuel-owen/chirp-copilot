@@ -1,6 +1,6 @@
 import { headers } from "next/headers"
 import { notFound } from "next/navigation"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import { ensureTenantIdFromHeaders } from "@/lib/db/tenant"
 
@@ -9,7 +9,6 @@ import VariantDetailClient from "@/components/variant-detail-client"
 import { getCatalogData, getVariantDetail } from "@/lib/storefront-data"
 import { parseVariantSlug } from "@/lib/utils"
 
-export const runtime = "edge"
 
 export default async function VariantDetailPage({
   params,
@@ -22,7 +21,7 @@ export default async function VariantDetailPage({
     notFound()
   }
 
-  const { env } = getRequestContext()
+  const { env } = await getCloudflareContext()
   const projectId = await ensureTenantIdFromHeaders(await headers(), env.DB)
   const db = getDb(env.DB)
 

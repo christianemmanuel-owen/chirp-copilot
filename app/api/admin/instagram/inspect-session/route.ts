@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { getDb } from "@/lib/db"
 import {
     instagramOAuthSessions
@@ -7,7 +7,6 @@ import {
 import { ensureTenantId } from "@/lib/db/tenant"
 import { eq, and } from "drizzle-orm"
 
-export const runtime = "edge"
 
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
@@ -21,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const { env } = getRequestContext()
+        const { env } = await getCloudflareContext()
         const d1 = env.DB
         if (!d1) return NextResponse.json({ error: "DB binding missing" }, { status: 500 })
 

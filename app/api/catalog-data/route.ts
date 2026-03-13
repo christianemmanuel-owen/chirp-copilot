@@ -1,14 +1,13 @@
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { NextResponse, type NextRequest } from "next/server"
 import { getDb } from "@/lib/db"
 import { ensureTenantId } from "@/lib/db/tenant"
 import { getCatalogData } from "@/lib/storefront-data"
 
-export const runtime = "edge"
 
 export async function GET(req: NextRequest) {
     try {
-        const { env } = getRequestContext()
+        const { env } = await getCloudflareContext()
         const projectId = await ensureTenantId(req, env.DB)
         const db = getDb(env.DB)
 

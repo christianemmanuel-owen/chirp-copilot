@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 
 
-export const runtime = "edge"
 
 const BUCKET_MAP = {
   products: "product-images",
@@ -43,7 +42,7 @@ export async function POST(request: Request, context: { params: Promise<{ catego
     }
 
     // In Cloudflare, R2 bindings are on env in getRequestContext()
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const bucket = env.UPLOADS as unknown as R2Bucket
     if (!bucket) {
       return NextResponse.json({ error: "R2 Bucket binding not found" }, { status: 500 })

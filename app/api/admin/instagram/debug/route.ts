@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 
-export const runtime = "edge"
 
 export async function GET() {
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const diagnostics = {
         timestamp: new Date().toISOString(),
         environment: {

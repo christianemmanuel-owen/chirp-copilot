@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 
-export const runtime = "edge"
 
 export async function POST(request: Request) {
   try {
@@ -11,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
-    const { env } = getRequestContext()
+    const { env } = await getCloudflareContext()
     const adminEmail = (env as any).ADMIN_EMAIL
     const adminPassword = (env as any).ADMIN_PASSWORD
 
