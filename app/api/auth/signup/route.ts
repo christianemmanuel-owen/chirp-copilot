@@ -3,7 +3,7 @@ import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/db"
 import { users, projects, userProjects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
-import bcrypt from "bcryptjs"
+import * as bcrypt from "bcrypt-ts"
 
 export const runtime = "edge"
 
