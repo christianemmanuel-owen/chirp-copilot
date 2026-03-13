@@ -1,3 +1,4 @@
+export const runtime = "edge"
 import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
 import { buildThemeConfig, themeConfigToCssVariables } from "@/lib/storefront-theme"
 import { getCatalogData } from "@/lib/storefront-data"

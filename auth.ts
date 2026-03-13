@@ -4,7 +4,7 @@ import Credentials from "next-auth/providers/credentials"
 import { getDb } from "@/lib/db"
 import { users, userProjects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
-import bcrypt from "bcryptjs"
+import * as bcrypt from "bcrypt-ts"
 
 export const { handlers, auth, signIn, signOut } = NextAuth((req) => {
     // In Cloudflare, we need to get the D1 binding from the request context

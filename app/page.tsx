@@ -1,3 +1,4 @@
+export const runtime = "edge"
 import { headers } from "next/headers"
 import { getRequestContext } from "@cloudflare/next-on-pages"
 import { eq } from "drizzle-orm"

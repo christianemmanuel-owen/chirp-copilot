@@ -31,6 +31,8 @@ import { eq } from "drizzle-orm"
 import { buildThemeConfig, DEFAULT_THEME_CONFIG, themeConfigToCssVariables } from "@/lib/storefront-theme"
 import { headers } from "next/headers"
 
+export const runtime = "edge"
+
 const DEFAULT_ICON = "/icon.png"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" })

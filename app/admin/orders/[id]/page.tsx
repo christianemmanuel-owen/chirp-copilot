@@ -1,5 +1,7 @@
 "use client"
 
+export const runtime = "edge"
+
 import { use, useEffect, useMemo, useRef, useState } from "react"
 import type { ChangeEvent } from "react"
 import { useStore } from "@/lib/store"
