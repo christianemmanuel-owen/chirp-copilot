@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { getCloudflareContext } from "@/lib/cloudflare/context"
 import { getDb } from "@/lib/db"
 import { products as productsSchema, productCategories, productVariants, variantSizes, brands, categories } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"

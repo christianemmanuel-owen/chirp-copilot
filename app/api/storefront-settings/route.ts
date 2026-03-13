@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache"
 import { NextResponse } from "next/server"
-import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { getCloudflareContext } from "@/lib/cloudflare/context"
 import { getDb } from "@/lib/db"
 import { storefrontSettings as settingsSchema } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"

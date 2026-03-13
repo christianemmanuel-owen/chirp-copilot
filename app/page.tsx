@@ -1,5 +1,5 @@
 import { headers } from "next/headers"
-import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { getCloudflareContext } from "@/lib/cloudflare/context"
 import { eq } from "drizzle-orm"
 import { getDb } from "@/lib/db"
 import { storefrontSettings } from "@/lib/db/schema"

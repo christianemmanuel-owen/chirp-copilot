@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { getCloudflareContext } from "@/lib/cloudflare/context"
 import { INSTAGRAM_RETURN_TO_COOKIE, INSTAGRAM_STATE_COOKIE } from "@/lib/meta/constants"
 import { exchangeCodeForLongLivedToken, fetchInstagramPageCandidates, getRedirectUri } from "@/lib/meta/instagram"
 import { getDb } from "@/lib/db"

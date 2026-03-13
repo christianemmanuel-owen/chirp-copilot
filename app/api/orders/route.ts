@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { getCloudflareContext } from "@/lib/cloudflare/context"
 import { getDb } from "@/lib/db"
 import { orders as ordersSchema, storefrontSettings } from "@/lib/db/schema"
 import { ensureTenantId } from "@/lib/db/tenant"

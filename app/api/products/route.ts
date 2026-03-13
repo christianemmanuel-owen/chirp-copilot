@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { getCloudflareContext } from "@/lib/cloudflare/context"
 import type { NewProductInput } from "@/lib/types"
 import { resolveBrandId, resolveCategoryIds } from "./utils"
 

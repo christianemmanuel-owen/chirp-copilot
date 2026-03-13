@@ -1,4 +1,4 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { getCloudflareContext } from "@/lib/cloudflare/context"
 import { NextResponse, type NextRequest } from "next/server"
 import { getDb } from "@/lib/db"
 import { ensureTenantId } from "@/lib/db/tenant"
