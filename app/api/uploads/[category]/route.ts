@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getRequestContext } from "@cloudflare/next-on-pages"
-import { randomUUID } from "crypto"
+
 
 export const runtime = "edge"
 
@@ -55,7 +55,7 @@ export async function POST(request: Request, context: { params: Promise<{ catego
     const extension = (extensionFromName || fallbackExtension || "bin").toLowerCase()
 
     // We keep the prefix structure but put it in the R2 bucket
-    const objectPath = `${prefix}/${Date.now()}-${randomUUID()}.${extension}`
+    const objectPath = `${prefix}/${Date.now()}-${crypto.randomUUID()}.${extension}`
 
     const arrayBuffer = await file.arrayBuffer()
 

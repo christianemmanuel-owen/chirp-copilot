@@ -1,4 +1,4 @@
-import crypto from "node:crypto"
+
 import { NextResponse } from "next/server"
 import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/db"
@@ -9,14 +9,30 @@ import { eq, and } from "drizzle-orm"
 export const runtime = "edge"
 export const dynamic = "force-dynamic"
 
-function isValidSignature(secret: string, rawBody: string, headerSignature: string | null) {
+async function isValidSignature(secret: string, rawBody: string, headerSignature: string | null) {
   if (!headerSignature) return false
 
-  const expected = "sha256=" + crypto.createHmac("sha256", secret).update(rawBody, "utf8").digest("hex")
+  const encoder = new TextEncoder()
+  const keyData = encoder.encode(secret)
+  const bodyData = encoder.encode(rawBody)
 
   try {
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(headerSignature))
-  } catch {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    )
+
+    const signatureBuffer = await crypto.subtle.sign("HMAC", key, bodyData)
+    const hashArray = Array.from(new Uint8Array(signatureBuffer))
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("")
+    const expected = "sha256=" + hashHex
+
+    return expected === headerSignature
+  } catch (error) {
+    console.error("[instagram][webhook] Signature verification error", error)
     return false
   }
 }
@@ -78,7 +94,7 @@ export async function POST(request: Request) {
   const rawBody = await request.text()
   const signature = request.headers.get("x-hub-signature-256")
 
-  if (!isValidSignature(appSecret, rawBody, signature)) {
+  if (!(await isValidSignature(appSecret, rawBody, signature))) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 403 })
   }
 
