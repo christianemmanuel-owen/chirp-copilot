@@ -142,7 +142,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         throw new Error("Upload failed")
       }
 
-      const uploadPayload = await uploadResponse.json()
+      const uploadPayload = await uploadResponse.json() as { url?: string }
       await updateOrderProof(order.id, uploadPayload.url ?? null)
     } catch (error) {
       console.error("Failed to update proof of payment", error)

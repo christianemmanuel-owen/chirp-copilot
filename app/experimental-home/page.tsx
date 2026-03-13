@@ -1,5 +1,9 @@
-export const runtime = "edge"
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getDb } from "@/lib/db"
+import { storefrontSettings } from "@/lib/db/schema"
+import { ensureTenantIdFromHeaders } from "@/lib/db/tenant"
+import { eq } from "drizzle-orm"
+import { headers } from "next/headers"
 import { buildThemeConfig, themeConfigToCssVariables } from "@/lib/storefront-theme"
 
 import { getCatalogData } from "@/lib/storefront-data"
@@ -23,23 +27,25 @@ interface ExperimentalHomePageProps {
 export default async function ExperimentalHomePage({ searchParams }: ExperimentalHomePageProps) {
     const params = await searchParams
     const isPreview = params.preview === "true"
-    const supabase = getSupabaseServiceRoleClient()
+    const { env } = getRequestContext()
+    const db = getDb(env.DB)
+    const headersList = await headers()
+    const tenantId = await ensureTenantIdFromHeaders(headersList, env.DB)
+
     const [
-        { data: settings },
+        settings,
         catalogData
     ] = await Promise.all([
-        supabase
-            .from("storefront_settings")
-            .select("theme_config, home_collection_mode, favicon_url")
-            .eq("id", 1)
-            .single(),
-        getCatalogData()
+        db.query.storefrontSettings.findFirst({
+            where: eq(storefrontSettings.projectId, tenantId)
+        }),
+        getCatalogData(db, tenantId)
     ])
 
-    const themeConfig = buildThemeConfig(settings?.theme_config)
+    const themeConfig = buildThemeConfig(settings?.themeConfig)
     const experimental = themeConfig.experimental!
 
-    const businessName = (settings?.theme_config as any)?.businessName || process.env.NEXT_PUBLIC_BUSINESS_NAME || "Storefront"
+    const businessName = (settings?.themeConfig as any)?.businessName || process.env.NEXT_PUBLIC_BUSINESS_NAME || "Storefront"
 
     const layout = experimental.layout!
 
@@ -58,7 +64,7 @@ export default async function ExperimentalHomePage({ searchParams }: Experimenta
             >
                 <ExperimentalNavigation
                     businessName={businessName}
-                    faviconUrl={settings?.favicon_url || null}
+                    faviconUrl={settings?.faviconUrl || null}
                     useLogo={experimental.navbar?.useLogo || false}
                     dropdownMode={experimental.navbar?.dropdownMode || "categories"}
                     navbarStyle={experimental.navbar?.navbarStyle || "glass"}
