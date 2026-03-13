@@ -1,25 +1,26 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { evaluateRateLimit, getClientKey } from "@/lib/rate-limit"
-import { auth } from "@/auth"
+import { getToken } from "next-auth/jwt"
 
 // Define admin subdomains that should not be treated as tenant slugs
 const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth"]
 
-export const middleware = auth((request: NextRequest & { auth: any }) => {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const hostname = request.headers.get("host") || ""
-  const session = request.auth
 
   // Resolve tenant from subdomain
-  // Local: client-a.localhost:3000 -> ["client-a", "localhost:3000"]
-  // Prod: client-a.chirpro.com -> ["client-a", "chirpro", "com"]
   const parts = hostname.split('.')
   const tenantSlug = parts.length > 2 || (hostname.includes('localhost') && parts.length > 1) ? parts[0] : null
 
   const isApiRoute = pathname.startsWith("/api/")
   const isAdminPage = pathname.startsWith("/admin")
   const isLoginPage = pathname === "/login" || pathname === "/signup"
+
+  // Use getToken() instead of auth() to avoid pulling in async_hooks
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET })
+  const session = token ? { user: { id: token.sub, projects: token.projects } } : null
 
   // Inject tenant info into headers for API usage
   const requestHeaders = new Headers(request.headers)
@@ -51,7 +52,6 @@ export const middleware = auth((request: NextRequest & { auth: any }) => {
     const userProjects = (session.user as any)?.projects || []
     const hasAccess = userProjects.some((p: any) => p.slug === tenantSlug)
     if (!hasAccess) {
-      // Forbidden or redirect to their "main" project
       return new NextResponse("Forbidden: You do not have access to this project", { status: 403 })
     }
   }
@@ -91,9 +91,8 @@ export const middleware = auth((request: NextRequest & { auth: any }) => {
       headers: requestHeaders,
     },
   })
-})
+}
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }
-
