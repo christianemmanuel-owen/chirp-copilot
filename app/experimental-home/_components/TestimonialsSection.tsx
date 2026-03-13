@@ -1,7 +1,7 @@
 import { SectionHeader } from "@/app/experimental-home/_components/SectionHeader"
 import { Star } from "lucide-react"
 
-export default function TestimonialsSection({ businessName = process.env.NEXT_PUBLIC_BUSINESS_NAME || "Storefront" }: { businessName?: string }) {
+export default function TestimonialsSection({ businessName = process.env.NEXT_PUBLIC_BUSINESS_NAME || "Storefront", isFirst, topPadding = 96 }: { businessName?: string, isFirst?: boolean, topPadding?: number }) {
     const TESTIMONIALS = [
         {
             name: "SOPHIE RENARD",
@@ -23,7 +23,10 @@ export default function TestimonialsSection({ businessName = process.env.NEXT_PU
         }
     ]
     return (
-        <section className="py-24 bg-white">
+        <section
+            className="pb-24 bg-white"
+            style={{ paddingTop: isFirst ? `${topPadding + 96}px` : "96px" }}
+        >
             <div className="max-w-7xl mx-auto px-6">
                 <SectionHeader
                     title="Voices of Excellence"

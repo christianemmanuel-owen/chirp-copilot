@@ -37,6 +37,7 @@ interface SectionLibraryDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     onAddSection: (type: string, variant: string) => void
+    pageType?: 'home' | 'catalog'
 }
 
 const VARIATIONS: Record<string, SectionVariation[]> = {
@@ -86,6 +87,95 @@ const VARIATIONS: Record<string, SectionVariation[]> = {
                     <div className="w-3/4 h-4 bg-foreground/10 rounded-full z-10" />
                     <div className="w-1/2 h-4 bg-foreground/10 rounded-full z-10" />
                     <div className="w-24 h-10 bg-primary/20 rounded-full mt-4 z-10" />
+                </div>
+            )
+        }
+    ],
+    "collection-spotlight": [
+        {
+            id: "glass-carousel",
+            type: "collection-spotlight",
+            name: "Glass Carousel",
+            description: "Smooth horizontally scrolling carousel with glassmorphic cards.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl p-4 flex flex-col gap-4 border border-border/50 overflow-hidden relative">
+                    <div className="w-1/3 h-2.5 bg-foreground/10 rounded-full" />
+                    <div className="flex gap-4">
+                        {[1, 2].map(i => (
+                            <div key={i} className="flex-[0_0_70%] aspect-[4/5] bg-black/5 rounded-[2rem] relative border border-white/20">
+                                <div className="absolute inset-x-4 bottom-4 h-16 backdrop-blur-md bg-white/10 rounded-2xl border border-white/20" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: "banner-carousel",
+            type: "collection-spotlight",
+            name: "Banner Carousel",
+            description: "Immersive full-bleed banner carousel with centered typography.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl border border-border/50 overflow-hidden relative flex flex-col items-center justify-center p-8 gap-4">
+                    <div className="absolute inset-0 bg-black/10" />
+                    <div className="absolute left-2 top-1/2 -translate-y-1/2 size-8 rounded-full bg-white/20" />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 size-8 rounded-full bg-white/20" />
+                    <div className="w-24 h-5 rounded-full bg-white/30 z-10" />
+                    <div className="w-3/4 h-8 bg-white/20 rounded-xl z-10" />
+                    <div className="w-1/2 h-4 bg-white/10 rounded-full z-10" />
+                    <div className="absolute bottom-4 flex gap-1.5 z-10">
+                        {[1, 2, 3].map(i => <div key={i} className="size-1.5 rounded-full bg-white/30" />)}
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: "split-reveal",
+            type: "collection-spotlight",
+            name: "Split Reveal",
+            description: "High-contrast split layout with staggered image reveals.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl flex border border-border/50 overflow-hidden">
+                    <div className="flex-1 p-4 flex flex-col justify-center gap-3">
+                        <div className="w-12 h-1 bg-primary rounded-full" />
+                        <div className="space-y-1">
+                            <div className="w-full h-4 bg-foreground/20 rounded-full" />
+                            <div className="w-4/5 h-4 bg-foreground/20 rounded-full" />
+                        </div>
+                        <div className="w-24 h-8 bg-black/80 rounded-full mt-2" />
+                    </div>
+                    <div className="w-[40%] bg-black/5 m-4 rounded-[2rem] border border-border/50" />
+                </div>
+            )
+        },
+        {
+            id: "bento-spotlight",
+            type: "collection-spotlight",
+            name: "Bento Spotlight",
+            description: "Modern grid-based showcase for multiple featured items.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl p-3 grid grid-cols-2 grid-rows-2 gap-2 border border-border/50 overflow-hidden">
+                    <div className="row-span-2 bg-black/5 rounded-2xl relative">
+                        <div className="absolute bottom-3 left-3 w-1/2 h-2 bg-foreground/10 rounded-full" />
+                    </div>
+                    <div className="bg-black/5 rounded-2xl" />
+                    <div className="bg-black/5 rounded-2xl" />
+                </div>
+            )
+        },
+        {
+            id: "minimal-banner",
+            type: "collection-spotlight",
+            name: "Minimal Banner",
+            description: "Clean, typography-focused banner with subtle depth.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl flex flex-col items-center justify-center p-6 gap-4 border border-border/50 overflow-hidden relative">
+                    <div className="w-24 h-6 rounded-full border border-primary/20 bg-primary/5" />
+                    <div className="space-y-2 w-full flex flex-col items-center">
+                        <div className="w-3/4 h-5 bg-foreground/20 rounded-full" />
+                        <div className="w-1/2 h-3 bg-foreground/10 rounded-full" />
+                    </div>
+                    <div className="w-32 h-1.5 bg-foreground/10 rounded-full mt-4" />
                 </div>
             )
         }
@@ -348,10 +438,83 @@ const VARIATIONS: Record<string, SectionVariation[]> = {
                 </div>
             )
         }
+    ],
+    "catalog-grid": [
+        {
+            id: "v1",
+            type: "catalog-grid",
+            name: "Classic Grid",
+            description: "A clean 4-column grid of all your products.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl p-4 grid grid-cols-4 gap-2 border border-border/50 overflow-hidden">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                        <div key={i} className="aspect-[3/4] bg-black/5 rounded-lg" />
+                    ))}
+                </div>
+            )
+        },
+        {
+            id: "list",
+            type: "catalog-grid",
+            name: "Detailed List",
+            description: "A vertical list of products with more focus on details.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl p-4 space-y-2 border border-border/50 overflow-hidden">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="h-12 bg-black/5 rounded-lg flex items-center px-3 gap-3">
+                            <div className="size-8 bg-black/5 rounded" />
+                            <div className="flex-1 h-3 bg-black/5 rounded" />
+                        </div>
+                    ))}
+                </div>
+            )
+        },
+        {
+            id: "masonry",
+            type: "catalog-grid",
+            name: "Masonry Layout",
+            description: "A dynamic, asymmetrical grid for varied product photography.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl p-4 columns-3 gap-2 border border-border/50 overflow-hidden">
+                    <div className="h-16 bg-black/5 rounded mb-2" />
+                    <div className="h-24 bg-black/5 rounded mb-2" />
+                    <div className="h-20 bg-black/5 rounded mb-2" />
+                    <div className="h-14 bg-black/5 rounded mb-2" />
+                    <div className="h-22 bg-black/5 rounded mb-2" />
+                </div>
+            )
+        },
+        {
+            id: "compact",
+            type: "catalog-grid",
+            name: "Compact Grid",
+            description: "Denser 6-column grid for quickly browsing large collections.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl p-2 grid grid-cols-6 gap-1 border border-border/50 overflow-hidden">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(i => (
+                        <div key={i} className="aspect-square bg-black/5 rounded-sm" />
+                    ))}
+                </div>
+            )
+        },
+        {
+            id: "split",
+            type: "catalog-grid",
+            name: "Featured Split",
+            description: "One large spotlight product followed by a secondary grid.",
+            skeleton: (
+                <div className="w-full aspect-[16/10] bg-muted rounded-xl p-2 grid grid-cols-3 gap-2 border border-border/50 overflow-hidden">
+                    <div className="col-span-1 bg-black/5 rounded-lg" />
+                    <div className="col-span-2 grid grid-cols-2 gap-1">
+                        {[1, 2, 3, 4].map(i => <div key={i} className="aspect-square bg-black/5 rounded-sm" />)}
+                    </div>
+                </div>
+            )
+        }
     ]
 }
 
-export function SectionLibraryDialog({ open, onOpenChange, onAddSection }: SectionLibraryDialogProps) {
+export function SectionLibraryDialog({ open, onOpenChange, onAddSection, pageType = 'home' }: SectionLibraryDialogProps) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[1200px] w-[95vw] lg:w-[90vw] h-[90vh] flex flex-col p-0 rounded-[2.5rem] overflow-hidden border-2 shadow-2xl">
@@ -362,21 +525,41 @@ export function SectionLibraryDialog({ open, onOpenChange, onAddSection }: Secti
                     </DialogDescription>
                 </DialogHeader>
 
-                <Tabs defaultValue="hero" className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+                <Tabs defaultValue={pageType === 'catalog' ? 'catalog-grid' : 'hero'} className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
                     <div className="px-8 border-b bg-background z-10">
                         <TabsList className="h-14 w-full justify-start bg-transparent gap-8 p-0">
-                            <TabsTrigger
-                                value="hero"
-                                className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none font-black uppercase text-[10px] tracking-widest"
-                            >
-                                <Play className="size-3 mr-2" /> Hero
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="categories"
-                                className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none font-black uppercase text-[10px] tracking-widest"
-                            >
-                                <Layout className="size-3 mr-2" /> Catalog
-                            </TabsTrigger>
+                            {pageType !== 'catalog' && (
+                                <>
+                                    <TabsTrigger
+                                        value="hero"
+                                        className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none font-black uppercase text-[10px] tracking-widest"
+                                    >
+                                        <Play className="size-3 mr-2" /> Hero
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="categories"
+                                        className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none font-black uppercase text-[10px] tracking-widest"
+                                    >
+                                        <Layout className="size-3 mr-2" /> Catalog
+                                    </TabsTrigger>
+                                </>
+                            )}
+                            {pageType === 'catalog' && (
+                                <>
+                                    <TabsTrigger
+                                        value="collection-spotlight"
+                                        className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none font-black uppercase text-[10px] tracking-widest"
+                                    >
+                                        <Play className="size-3 mr-2" /> Spotlight
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="catalog-grid"
+                                        className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none font-black uppercase text-[10px] tracking-widest"
+                                    >
+                                        <Grid className="size-3 mr-2" /> Catalog Grid
+                                    </TabsTrigger>
+                                </>
+                            )}
                             <TabsTrigger
                                 value="featured"
                                 className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none font-black uppercase text-[10px] tracking-widest"
@@ -399,41 +582,49 @@ export function SectionLibraryDialog({ open, onOpenChange, onAddSection }: Secti
                     </div>
 
                     <div className="flex-1 relative overflow-hidden">
-                        {Object.entries(VARIATIONS).map(([cat, sections]) => (
-                            <TabsContent
-                                key={cat}
-                                value={cat}
-                                className="absolute inset-0 m-0 focus-visible:outline-none overflow-y-auto data-[state=active]:block"
-                            >
-                                <div className="p-8 pb-32">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {sections.map((section) => (
-                                            <div
-                                                key={section.id}
-                                                className="group flex flex-col bg-muted/30 rounded-[2rem] border border-border/50 hover:border-primary/50 transition-all hover:shadow-xl hover:-translate-y-1 cursor-pointer overflow-hidden"
-                                                onClick={() => {
-                                                    onAddSection(section.type, section.id)
-                                                    onOpenChange(false)
-                                                }}
-                                            >
-                                                <div className="p-3">
-                                                    {section.skeleton}
+                        {Object.entries(VARIATIONS)
+                            .filter(([cat]) => {
+                                if (cat === 'footer') return true
+                                if (pageType === 'catalog') {
+                                    return ['catalog-grid', 'collection-spotlight', 'featured', 'about'].includes(cat)
+                                }
+                                return ['hero', 'categories', 'featured', 'about'].includes(cat)
+                            })
+                            .map(([cat, sections]) => (
+                                <TabsContent
+                                    key={cat}
+                                    value={cat}
+                                    className="absolute inset-0 m-0 focus-visible:outline-none overflow-y-auto data-[state=active]:block"
+                                >
+                                    <div className="p-8 pb-32">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {sections.map((section) => (
+                                                <div
+                                                    key={section.id}
+                                                    className="group flex flex-col bg-muted/30 rounded-[2rem] border border-border/50 hover:border-primary/50 transition-all hover:shadow-xl hover:-translate-y-1 cursor-pointer overflow-hidden"
+                                                    onClick={() => {
+                                                        onAddSection(section.type, section.id)
+                                                        onOpenChange(false)
+                                                    }}
+                                                >
+                                                    <div className="p-3">
+                                                        {section.skeleton}
+                                                    </div>
+                                                    <div className="p-6 pt-2 flex flex-col gap-1">
+                                                        <h4 className="font-black text-lg tracking-tight uppercase">{section.name}</h4>
+                                                        <p className="text-xs font-bold text-muted-foreground leading-relaxed">
+                                                            {section.description}
+                                                        </p>
+                                                        <Button size="sm" className="mt-4 rounded-full font-black uppercase tracking-widest text-[10px] w-full self-start opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            Add to Page
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                                <div className="p-6 pt-2 flex flex-col gap-1">
-                                                    <h4 className="font-black text-lg tracking-tight uppercase">{section.name}</h4>
-                                                    <p className="text-xs font-bold text-muted-foreground leading-relaxed">
-                                                        {section.description}
-                                                    </p>
-                                                    <Button size="sm" className="mt-4 rounded-full font-black uppercase tracking-widest text-[10px] w-full self-start opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        Add to Page
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                            </TabsContent>
-                        ))}
+                                </TabsContent>
+                            ))}
                     </div>
                 </Tabs>
             </DialogContent>

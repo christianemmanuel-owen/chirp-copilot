@@ -112,6 +112,7 @@ export interface CatalogData {
   }
   discountFilter?: DiscountFilterPayload
   variants: CatalogVariant[]
+  discountCampaigns: DiscountCampaign[]
   categoryFilters: string[]
   brandFilters: string[]
   priceRange: [number, number]
@@ -1037,6 +1038,7 @@ export async function getCatalogData(): Promise<CatalogData> {
     },
     discountFilter,
     variants,
+    discountCampaigns,
     categoryFilters,
     brandFilters,
     priceRange,

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import InlineStyleToolbar from "./InlineStyleToolbar"
+import type { StyleEditorData } from "./InlineStyleToolbar"
 
 export default function PreviewManager() {
     const [selectedElement, setSelectedElement] = useState<HTMLElement | null>(null)
@@ -181,6 +181,33 @@ export default function PreviewManager() {
                 // Enable editing
                 target.contentEditable = 'true'
                 target.focus()
+
+                // Send request to parent for styling
+                const styles = window.getComputedStyle(target)
+                const section = target.closest('[data-section-id]')
+                const rect = target.getBoundingClientRect()
+
+                window.parent.postMessage({
+                    type: 'STYLE_EDITOR_REQUEST',
+                    data: {
+                        rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+                        tagName: target.tagName,
+                        sectionId: section?.getAttribute('data-section-id'),
+                        elementKey: target.getAttribute('data-element-key'),
+                        computedStyles: {
+                            fontSize: styles.fontSize,
+                            fontFamily: styles.fontFamily,
+                            color: styles.color,
+                            backgroundColor: styles.backgroundColor,
+                            backdropFilter: styles.backdropFilter,
+                            borderColor: styles.borderColor,
+                            borderWidth: styles.borderWidth,
+                            borderRadius: styles.borderRadius,
+                            padding: styles.padding,
+                            linkUrl: target.getAttribute('data-link-url') || ""
+                        }
+                    }
+                }, '*')
             }
         }
 
@@ -192,6 +219,7 @@ export default function PreviewManager() {
                 selectedElement.style.outlineOffset = ''
                 selectedElement.contentEditable = 'false'
                 setSelectedElement(null)
+                window.parent.postMessage({ type: 'STYLE_EDITOR_CLOSED' }, '*')
             }
         }
 
@@ -236,7 +264,7 @@ export default function PreviewManager() {
             }
         }
 
-        // --- CATALOG SELECTION TRACKING ---
+        // --- CATALOG & STYLE SELECTION TRACKING ---
         const handleScrollOrResize = () => {
             if (selectedCatalogElement) {
                 const rect = selectedCatalogElement.getBoundingClientRect()
@@ -245,9 +273,16 @@ export default function PreviewManager() {
                     rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
                 }, '*')
             }
+            if (selectedElement) {
+                const rect = selectedElement.getBoundingClientRect()
+                window.parent.postMessage({
+                    type: 'STYLE_EDITOR_POSITION_UPDATE',
+                    rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+                }, '*')
+            }
         }
 
-        if (selectedCatalogElement) {
+        if (selectedCatalogElement || selectedElement) {
             window.addEventListener('scroll', handleScrollOrResize, true)
             window.addEventListener('resize', handleScrollOrResize, true)
             // Send initial update instantly
@@ -269,7 +304,7 @@ export default function PreviewManager() {
             window.removeEventListener('click', handleClick, true)
             window.removeEventListener('submit', handleFormSubmit, true)
             document.removeEventListener('keydown', handleKeyDown)
-            if (selectedCatalogElement) {
+            if (selectedCatalogElement || selectedElement) {
                 window.removeEventListener('scroll', handleScrollOrResize, true)
                 window.removeEventListener('resize', handleScrollOrResize, true)
             }
@@ -286,6 +321,14 @@ export default function PreviewManager() {
                     selectedCatalogElement.style.outline = ''
                     selectedCatalogElement.style.outlineOffset = ''
                     setSelectedCatalogElement(null)
+                }
+            }
+            if (e.data.type === 'STYLE_EDITOR_CLOSED') {
+                if (selectedElement) {
+                    selectedElement.style.outline = ''
+                    selectedElement.style.outlineOffset = ''
+                    selectedElement.contentEditable = 'false'
+                    setSelectedElement(null)
                 }
             }
         }
@@ -312,19 +355,7 @@ export default function PreviewManager() {
 
     return (
         <>
-            {selectedElement && (
-                <InlineStyleToolbar
-                    target={selectedElement}
-                    onUpdate={handleStyleUpdate}
-                    onClose={() => {
-                        if (selectedElement) {
-                            selectedElement.style.outline = ''
-                            selectedElement.contentEditable = 'false'
-                            setSelectedElement(null)
-                        }
-                    }}
-                />
-            )}
+            {/* Toolbar is now rendered at the root level in page.tsx */}
             <style jsx global>{`
                 [contenteditable="true"]:focus {
                     outline: 2px solid #6355ff !important;

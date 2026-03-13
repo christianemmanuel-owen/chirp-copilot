@@ -54,10 +54,12 @@ import Link from "next/link"
 import GlobalStylesEditor from "@/components/editor/GlobalStylesEditor"
 import SectionSettings from "@/components/editor/SectionSettings"
 import { SectionLibraryDialog } from "@/components/editor/SectionLibraryDialog"
-import { DEFAULT_THEME_COLORS, type StorefrontThemeConfig } from "@/lib/storefront-theme"
+import { DEFAULT_THEME_COLORS, type StorefrontThemeConfig, buildThemeConfig } from "@/lib/storefront-theme"
 import { InlineCatalogSelector, type SelectionRequest } from "@/components/editor/InlineCatalogSelector"
 import { InlineIconPicker } from "@/components/editor/InlineIconPicker"
 import type { IconName } from "@/lib/icons"
+import InlineStyleToolbar, { type StyleEditorData } from "@/components/InlineStyleToolbar"
+
 
 
 
@@ -92,7 +94,23 @@ const SECTION_ELEMENTS: Record<string, { label: string, key: string }[]> = {
         { label: "Mission Statement", key: "footerMission" },
         { label: "Social Links", key: "footerSocials" },
         { label: "Shop/Support Links", key: "footerColumns" },
-    ]
+    ],
+    "collection-spotlight": [
+        { label: "Banner Slides", key: "bannerSlides" },
+        { label: "Accent / Badge", key: "heroAccent" },
+        { label: "Main Title", key: "heroTitle" },
+        { label: "Description", key: "heroSubtitle" },
+        { label: "Products / Cards", key: "heroFeaturedCard" },
+        { label: "Navigation Buttons", key: "heroNavigation" },
+        { label: "CTA Button", key: "ctaButton" }
+    ],
+    "catalog-grid": [
+        { label: "Grid Title", key: "catalogTitle" },
+        { label: "Grid Subtitle", key: "catalogSubtitle" },
+        { label: "Search Bar", key: "catalogSearch" },
+        { label: "Filter Controls", key: "catalogFilters" },
+        { label: "Products", key: "catalogGridList" },
+    ],
 }
 
 export default function VisualEditorPage() {
@@ -121,6 +139,7 @@ export default function VisualEditorPage() {
     const [catalogSelectionRequest, setCatalogSelectionRequest] = useState<SelectionRequest | null>(null)
     const [isSectionLibraryOpen, setIsSectionLibraryOpen] = useState(false)
     const [iconSelectionRequest, setIconSelectionRequest] = useState<any>(null)
+    const [styleEditorRequest, setStyleEditorRequest] = useState<StyleEditorData | null>(null)
 
     const [previewSize, setPreviewSize] = useState<'laptop' | 'tablet' | 'phone'>('laptop')
     const [activePage, setActivePage] = useState<'home' | 'catalog'>('home')
@@ -135,7 +154,12 @@ export default function VisualEditorPage() {
     }
 
     const toggleElementVisibility = (sectionId: string, elementKey: string) => {
-        const newLayout = config.experimental.layout.map((section: any) => {
+        const isCatalog = activePage === 'catalog'
+        const currentLayout = isCatalog
+            ? (config.experimental?.catalogLayout || [])
+            : (config.experimental?.layout || [])
+
+        const updatedLayout = currentLayout.map((section: any) => {
             if (section.id === sectionId) {
                 const hiddenFields = section.hiddenFields || []
                 const newHiddenFields = hiddenFields.includes(elementKey)
@@ -149,7 +173,7 @@ export default function VisualEditorPage() {
             ...config,
             experimental: {
                 ...config.experimental,
-                layout: newLayout
+                [isCatalog ? 'catalogLayout' : 'layout']: updatedLayout
             }
         })
     }
@@ -262,9 +286,13 @@ export default function VisualEditorPage() {
             const res = await fetch("/api/storefront-settings")
             const result = await res.json()
             if (result.data) {
+                const standardizedConfig = {
+                    ...result.data,
+                    theme_config: buildThemeConfig(result.data.theme_config)
+                }
                 setHistory({
                     past: [],
-                    present: result.data,
+                    present: standardizedConfig,
                     future: [],
                     loading: false
                 })
@@ -294,7 +322,12 @@ export default function VisualEditorPage() {
             if (type === 'STYLE_UPDATE') {
                 updateConfig((prev: any) => {
                     if (!prev) return prev
-                    const newLayout = prev.experimental.layout.map((s: any) => {
+                    const isCatalog = activePage === 'catalog'
+                    const currentLayout = isCatalog
+                        ? (prev.experimental?.catalogLayout || [])
+                        : (prev.experimental?.layout || [])
+
+                    const updatedLayout = currentLayout.map((s: any) => {
                         if (s.id === sectionId) {
                             return {
                                 ...s,
@@ -311,7 +344,10 @@ export default function VisualEditorPage() {
                     })
                     return {
                         ...prev,
-                        experimental: { ...prev.experimental, layout: newLayout }
+                        experimental: {
+                            ...prev.experimental,
+                            [isCatalog ? 'catalogLayout' : 'layout']: updatedLayout
+                        }
                     }
                 })
             }
@@ -334,7 +370,12 @@ export default function VisualEditorPage() {
 
             if (type === 'CATALOG_SELECTION_REQUEST') {
                 const { sectionId, selectionType, clientX, clientY, elementKey } = e.data
-                const section = config.experimental.layout.find((s: any) => s.id === sectionId)
+                const isCatalog = activePage === 'catalog'
+                const currentLayout = isCatalog
+                    ? (config.experimental?.catalogLayout || [])
+                    : (config.experimental?.layout || [])
+
+                const section = currentLayout.find((s: any) => s.id === sectionId)
 
                 if (selectionType === "icon") {
                     if (previewRef.current) {
@@ -379,6 +420,38 @@ export default function VisualEditorPage() {
 
             if (type === 'CATALOG_SELECTION_CLOSED') {
                 setCatalogSelectionRequest(null)
+            }
+
+            if (type === 'STYLE_EDITOR_REQUEST') {
+                if (previewRef.current) {
+                    const rect = previewRef.current.getBoundingClientRect()
+                    setStyleEditorRequest({
+                        ...e.data.data,
+                        rect: {
+                            ...e.data.data.rect,
+                            top: e.data.data.rect.top + rect.top,
+                            left: e.data.data.rect.left + rect.left
+                        }
+                    })
+                }
+            }
+
+            if (type === 'STYLE_EDITOR_POSITION_UPDATE') {
+                if (previewRef.current) {
+                    const iframeRect = previewRef.current.getBoundingClientRect()
+                    setStyleEditorRequest((prev: any) => prev ? ({
+                        ...prev,
+                        rect: {
+                            ...e.data.rect,
+                            top: e.data.rect.top + iframeRect.top,
+                            left: e.data.rect.left + iframeRect.left
+                        }
+                    }) : null)
+                }
+            }
+
+            if (type === 'STYLE_EDITOR_CLOSED') {
+                setStyleEditorRequest(null)
             }
         }
 
@@ -427,20 +500,31 @@ export default function VisualEditorPage() {
     const onDragEnd = (result: DropResult) => {
         if (!result.destination) return
 
-        const items = Array.from(config.experimental.layout)
+        const isCatalog = activePage === 'catalog'
+        const currentLayout = isCatalog
+            ? (config.experimental?.catalogLayout || [])
+            : (config.experimental?.layout || [])
+
+        const items = Array.from(currentLayout)
         const [reorderedItem] = items.splice(result.source.index, 1)
         items.splice(result.destination.index, 0, reorderedItem)
 
-        updateConfig({
+        const updatedConfig = {
             ...config,
             experimental: {
                 ...config.experimental,
-                layout: items
+                [isCatalog ? 'catalogLayout' : 'layout']: items
             }
-        })
+        }
+        updateConfig(updatedConfig)
     }
 
     const handleAddSection = (type: string, variant: string) => {
+        const isCatalog = activePage === 'catalog'
+        const currentLayout = isCatalog
+            ? (config.experimental?.catalogLayout || [])
+            : (config.experimental?.layout || [])
+
         const id = `${type}-${Date.now()}`
         const newSection = {
             id,
@@ -467,16 +551,26 @@ export default function VisualEditorPage() {
                                 ? { color: "#ffffff" }
                                 : (type === "footer" && (variant === "v2" || variant === "v3"))
                                     ? { color: "#000000" }
-                                    : undefined
+                                    : (type === "collection-spotlight" && variant === "glass-carousel")
+                                        ? { color: "#0a0a0a", overlayEnabled: true, overlayOpacity: 0.2 }
+                                        : (type === "collection-spotlight" && variant === "split-reveal")
+                                            ? { color: "#ffffff" }
+                                            : (type === "collection-spotlight" && variant === "minimal-banner")
+                                                ? { color: "#ffffff", gradient: { enabled: true, direction: "to bottom", stops: [{ color: "#ffffff", offset: 0, opacity: 1 }, { color: "#f8f8f8", offset: 100, opacity: 1 }] } }
+                                                : undefined
         }
 
-        updateConfig((prev: any) => ({
-            ...prev,
+        const updatedLayout = [...currentLayout, newSection]
+
+        const updatedConfig = {
+            ...config,
             experimental: {
-                ...prev.experimental,
-                layout: [...prev.experimental.layout, newSection]
+                ...config.experimental,
+                [isCatalog ? 'catalogLayout' : 'layout']: updatedLayout
             }
-        }))
+        }
+
+        updateConfig(updatedConfig)
 
         setExpandedSections(prev => [...prev, id])
 
@@ -489,16 +583,28 @@ export default function VisualEditorPage() {
     const handleRemoveSection = (id: string) => {
         if (!confirm("Are you sure you want to remove this section? This cannot be undone easily (though you can use 'Undo').")) return
 
-        const section = config.experimental.layout.find((s: any) => s.id === id)
-        const newLayout = config.experimental.layout.filter((s: any) => s.id !== id)
+        const isCatalog = activePage === 'catalog'
+        const currentLayout = isCatalog
+            ? (config.experimental?.catalogLayout || [])
+            : (config.experimental?.layout || [])
 
-        updateConfig({
+        const section = currentLayout.find((s: any) => s.id === id)
+        const updatedLayout = currentLayout.filter((s: any) => s.id !== id)
+
+        const updatedConfig = {
             ...config,
             experimental: {
                 ...config.experimental,
-                layout: newLayout
+                [isCatalog ? 'catalogLayout' : 'layout']: updatedLayout
             }
-        })
+        }
+
+        const newHistoryItem = {
+            config: updatedConfig,
+            timestamp: Date.now()
+        }
+
+        updateConfig(updatedConfig)
 
         setExpandedSections(prev => prev.filter(s => s !== id))
 
@@ -510,7 +616,12 @@ export default function VisualEditorPage() {
 
     const handleIconSelect = (sectionId: string, iconKey: string, iconName: IconName) => {
         updateConfig((prev: any) => {
-            const newLayout = prev.experimental.layout.map((item: any) => {
+            const isCatalog = activePage === 'catalog'
+            const currentLayout = isCatalog
+                ? (prev.experimental?.catalogLayout || [])
+                : (prev.experimental?.layout || [])
+
+            const updatedLayout = currentLayout.map((item: any) => {
                 if (item.id === sectionId) {
                     return {
                         ...item,
@@ -527,7 +638,10 @@ export default function VisualEditorPage() {
             })
             return {
                 ...prev,
-                experimental: { ...prev.experimental, layout: newLayout }
+                experimental: {
+                    ...prev.experimental,
+                    [isCatalog ? 'catalogLayout' : 'layout']: updatedLayout
+                }
             }
         })
     }
@@ -552,20 +666,90 @@ export default function VisualEditorPage() {
                         }
                     }}
                     onSelect={(sectionId, selectedIds) => {
-                        const newLayout = config.experimental.layout.map((item: any) => {
+                        const isCatalog = activePage === 'catalog'
+                        const currentLayout = isCatalog
+                            ? (config.experimental?.catalogLayout || [])
+                            : (config.experimental?.layout || [])
+
+                        const updatedLayout = currentLayout.map((item: any) => {
                             if (item.id === sectionId) {
-                                const isCat = catalogSelectionRequest.selectionType === "categories"
+                                const selectionType = catalogSelectionRequest.selectionType
+                                let metadataKey = "selectedProductIds"
+                                if (selectionType === "categories") metadataKey = "selectedCategoryIds"
+                                if (selectionType === "banner-slides") metadataKey = "selectedBannerItemIds"
+
                                 return {
                                     ...item,
                                     metadata: {
                                         ...item.metadata,
-                                        [isCat ? "selectedCategoryIds" : "selectedProductIds"]: selectedIds
+                                        [metadataKey]: selectedIds
                                     }
                                 }
                             }
                             return item
                         })
-                        updateConfig({ ...config, experimental: { ...config.experimental, layout: newLayout } })
+                        updateConfig({
+                            ...config,
+                            experimental: {
+                                ...config.experimental,
+                                [isCatalog ? 'catalogLayout' : 'layout']: updatedLayout
+                            }
+                        })
+                    }}
+                />
+            )}
+
+            {styleEditorRequest && (
+                <InlineStyleToolbar
+                    data={styleEditorRequest}
+                    onClose={() => {
+                        setStyleEditorRequest(null)
+                        if (previewRef.current?.contentWindow) {
+                            previewRef.current.contentWindow.postMessage({ type: 'STYLE_EDITOR_CLOSED' }, '*')
+                        }
+                    }}
+                    onUpdate={(styles) => {
+                        // 1. Update the local state immediately for the preview to react
+                        updateConfig((prev: any) => {
+                            if (!prev) return prev
+                            const isCatalog = activePage === 'catalog'
+                            const currentLayout = isCatalog
+                                ? (prev.experimental?.catalogLayout || [])
+                                : (prev.experimental?.layout || [])
+
+                            const updatedLayout = currentLayout.map((s: any) => {
+                                if (s.id === styleEditorRequest.sectionId) {
+                                    return {
+                                        ...s,
+                                        styles: {
+                                            ...s.styles,
+                                            [styleEditorRequest.elementKey]: {
+                                                ...(s.styles?.[styleEditorRequest.elementKey] || {}),
+                                                ...styles
+                                            }
+                                        }
+                                    }
+                                }
+                                return s
+                            })
+                            return {
+                                ...prev,
+                                experimental: {
+                                    ...prev.experimental,
+                                    [isCatalog ? 'catalogLayout' : 'layout']: updatedLayout
+                                }
+                            }
+                        })
+
+                        // 2. Also notify the iframe directly for instant cosmetic update if possible
+                        if (previewRef.current?.contentWindow) {
+                            previewRef.current.contentWindow.postMessage({
+                                type: 'STYLE_UPDATE',
+                                sectionId: styleEditorRequest.sectionId,
+                                elementKey: styleEditorRequest.elementKey,
+                                styles
+                            }, '*')
+                        }
                     }}
                 />
             )}
@@ -574,6 +758,7 @@ export default function VisualEditorPage() {
                 open={isSectionLibraryOpen}
                 onOpenChange={setIsSectionLibraryOpen}
                 onAddSection={handleAddSection}
+                pageType={activePage}
             />
 
             {/* Sidebar Editor */}
@@ -649,9 +834,33 @@ export default function VisualEditorPage() {
                                                             ref={provided.innerRef}
                                                             className="space-y-2"
                                                         >
-                                                            {(config.experimental?.layout || []).map((section: any, idx: number) => {
+                                                            {(activePage === 'catalog' ? (config.experimental?.catalogLayout || []) : (config.experimental?.layout || [])).map((section: any, idx: number) => {
                                                                 const isExpanded = expandedSections.includes(section.id)
-                                                                const elements = SECTION_ELEMENTS[section.type] || []
+                                                                let elements = SECTION_ELEMENTS[section.type] || []
+
+                                                                // Variant-aware element filtering
+                                                                const variant = section.metadata?.variant
+                                                                if (section.type === 'collection-spotlight') {
+                                                                    if (variant !== 'banner-carousel') {
+                                                                        elements = elements.filter(el => el.key !== 'bannerSlides')
+                                                                    }
+                                                                    if (variant === 'banner-carousel') {
+                                                                        elements = elements.filter(el => el.key !== 'heroFeaturedCard')
+                                                                    }
+
+                                                                    if (variant === 'glass-carousel' || variant === 'banner-carousel' || variant === 'split-reveal' || variant === 'minimal-banner') {
+                                                                        elements = elements.filter(el => el.key !== 'heroFeaturedCardSecondary')
+                                                                    }
+                                                                    if (variant === 'bento-spotlight') {
+                                                                        elements = elements.filter(el => !['heroCTA', 'heroNavigation', 'heroAccent'].includes(el.key))
+                                                                    }
+                                                                    if (variant !== 'glass-carousel' && variant !== 'banner-carousel') {
+                                                                        elements = elements.filter(el => el.key !== 'heroNavigation')
+                                                                    }
+                                                                }
+                                                                if (section.type === 'catalog-grid') {
+                                                                    // Show/hide search/filters based on variant if needed, but currently all variants have them
+                                                                }
 
                                                                 return (
                                                                     <Draggable key={section.id} draggableId={section.id} index={idx}>
@@ -671,12 +880,13 @@ export default function VisualEditorPage() {
                                                                                                 <GripVertical className="size-4" />
                                                                                             </div>
                                                                                             <div
-                                                                                                className="flex-1 cursor-pointer flex items-center gap-2"
-                                                                                                onClick={() => toggleSectionExpansion(section.id)}
+                                                                                                className="flex-1 flex items-center gap-2"
                                                                                             >
-                                                                                                {isExpanded ? <ChevronDown className="size-2.5 text-muted-foreground" /> : <ChevronRight className="size-2.5 text-muted-foreground" />}
-                                                                                                <div className="flex flex-col">
-                                                                                                    <span className="text-[10px] font-black uppercase tracking-tight text-foreground">{section.type}</span>
+                                                                                                <div onClick={() => toggleSectionExpansion(section.id)} className="cursor-pointer">
+                                                                                                    {isExpanded ? <ChevronDown className="size-2.5 text-muted-foreground" /> : <ChevronRight className="size-2.5 text-muted-foreground" />}
+                                                                                                </div>
+                                                                                                <div className="flex flex-col flex-1">
+                                                                                                    <span className="text-[10px] font-black uppercase tracking-tight text-foreground" onClick={() => toggleSectionExpansion(section.id)}>{section.type}</span>
                                                                                                     {!section.enabled && <span className="text-[8px] font-bold text-muted-foreground/50">Hidden</span>}
                                                                                                 </div>
                                                                                             </div>
@@ -708,7 +918,12 @@ export default function VisualEditorPage() {
                                                                                                                 background={section.background}
                                                                                                                 section={section}
                                                                                                                 onChange={(background, sectionUpdates) => {
-                                                                                                                    const newLayout = config.experimental.layout.map((item: any) => {
+                                                                                                                    const isCatalog = activePage === 'catalog'
+                                                                                                                    const currentLayout = isCatalog
+                                                                                                                        ? (config.experimental?.catalogLayout || [])
+                                                                                                                        : (config.experimental?.layout || [])
+
+                                                                                                                    const updatedLayout = currentLayout.map((item: any) => {
                                                                                                                         if (item.id === section.id) {
                                                                                                                             return { ...item, background, ...sectionUpdates }
                                                                                                                         }
@@ -718,7 +933,7 @@ export default function VisualEditorPage() {
                                                                                                                         ...config,
                                                                                                                         experimental: {
                                                                                                                             ...config.experimental,
-                                                                                                                            layout: newLayout
+                                                                                                                            [isCatalog ? 'catalogLayout' : 'layout']: updatedLayout
                                                                                                                         }
                                                                                                                     })
                                                                                                                 }}
@@ -733,17 +948,23 @@ export default function VisualEditorPage() {
                                                                                                     className="size-7 rounded-lg"
                                                                                                     title={section.enabled ? "Hide Section" : "Show Section"}
                                                                                                     onClick={() => {
-                                                                                                        const newLayout = config.experimental.layout.map((item: any, i: number) => {
-                                                                                                            if (i === idx) {
+                                                                                                        const isCatalog = activePage === 'catalog'
+                                                                                                        const currentLayout = isCatalog
+                                                                                                            ? (config.experimental?.catalogLayout || [])
+                                                                                                            : (config.experimental?.layout || [])
+
+                                                                                                        const updatedLayout = currentLayout.map((item: any) => {
+                                                                                                            if (item.id === section.id) {
                                                                                                                 return { ...item, enabled: !item.enabled }
                                                                                                             }
                                                                                                             return item
                                                                                                         })
+
                                                                                                         updateConfig({
                                                                                                             ...config,
                                                                                                             experimental: {
                                                                                                                 ...config.experimental,
-                                                                                                                layout: newLayout
+                                                                                                                [isCatalog ? 'catalogLayout' : 'layout']: updatedLayout
                                                                                                             }
                                                                                                         })
                                                                                                     }}
@@ -1050,7 +1271,7 @@ export default function VisualEditorPage() {
 
                         <iframe
                             ref={previewRef}
-                            src="/?preview=true"
+                            src={activePage === 'home' ? "/?preview=true" : "/experimental-catalog?preview=true"}
                             className="w-full h-full border-none"
                             title="Storefront Preview"
                         />

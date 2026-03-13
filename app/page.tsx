@@ -56,6 +56,7 @@ export default async function StorefrontHome({ searchParams }: StorefrontHomePro
           catalogData={catalogData}
           initialLayout={layout}
           isPreview={isPreview}
+          pageType="home"
         />
       </div>
     </main>

@@ -16,9 +16,11 @@ interface CategoryCarouselSectionProps {
     background?: SectionBackground
     hiddenFields?: string[]
     variant?: string
+    isFirst?: boolean
+    topPadding?: number
 }
 
-export default function CategoryCarouselSection({ tiles, styles, sectionId, background, hiddenFields, variant = "v1" }: CategoryCarouselSectionProps) {
+export default function CategoryCarouselSection({ tiles, styles, sectionId, background, hiddenFields, variant = "v1", isFirst, topPadding = 96 }: CategoryCarouselSectionProps) {
     const sectionStyles = getSectionStyles(background)
     const [emblaRef] = useEmblaCarousel({ loop: true }, [
         AutoScroll({ playOnInit: true, speed: 1, stopOnInteraction: false }) as any
@@ -33,9 +35,12 @@ export default function CategoryCarouselSection({ tiles, styles, sectionId, back
 
     return (
         <section
-            className="py-24 bg-background overflow-hidden"
+            className="bg-background overflow-hidden pb-24"
             data-section-id={sectionId}
-            style={sectionStyles}
+            style={{
+                ...sectionStyles,
+                paddingTop: isFirst ? `${topPadding + 96}px` : "96px"
+            }}
         >
 
             {(!isHidden("categoryTitle") || !isHidden("categorySubtitle")) && (

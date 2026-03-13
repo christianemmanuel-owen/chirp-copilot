@@ -13,9 +13,11 @@ interface EcommerceFooterProps {
     background?: SectionBackground
     hiddenFields?: string[]
     variant?: string
+    isFirst?: boolean
+    topPadding?: number
 }
 
-export default function EcommerceFooter({ businessName, mission, newsletterBlurb, styles, sectionId, background, hiddenFields, variant = "v1" }: EcommerceFooterProps) {
+export default function EcommerceFooter({ businessName, mission, newsletterBlurb, styles, sectionId, background, hiddenFields, variant = "v1", isFirst, topPadding = 96 }: EcommerceFooterProps) {
     const currentYear = new Date().getFullYear()
     const sectionStyles = getSectionStyles(background)
 
@@ -38,9 +40,12 @@ export default function EcommerceFooter({ businessName, mission, newsletterBlurb
     if (variant === "v2") {
         return (
             <footer
-                className="bg-accent text-accent-foreground border-t border-white/5 py-12"
+                className="bg-accent text-accent-foreground border-t border-white/5 pb-12"
                 data-section-id={sectionId}
-                style={sectionStyleContainer}
+                style={{
+                    ...sectionStyleContainer,
+                    paddingTop: isFirst ? `${topPadding + 48}px` : "48px"
+                }}
             >
                 <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-8">
                     {!isHidden("footerBrand") && (
@@ -78,9 +83,12 @@ export default function EcommerceFooter({ businessName, mission, newsletterBlurb
     if (variant === "v3") {
         return (
             <footer
-                className="bg-accent text-accent-foreground border-t border-white/5 pt-24 pb-8"
+                className="bg-accent text-accent-foreground border-t border-white/5 pb-8"
                 data-section-id={sectionId}
-                style={sectionStyleContainer}
+                style={{
+                    ...sectionStyleContainer,
+                    paddingTop: isFirst ? `${topPadding + 96}px` : "96px"
+                }}
             >
                 <div className="max-w-7xl mx-auto px-6">
                     <div className="flex flex-col lg:flex-row justify-between items-start gap-16 lg:gap-8 mb-24">
@@ -158,7 +166,10 @@ export default function EcommerceFooter({ businessName, mission, newsletterBlurb
         <footer
             className="bg-accent text-accent-foreground border-t border-white/5"
             data-section-id={sectionId}
-            style={sectionStyles}
+            style={{
+                ...sectionStyles,
+                paddingTop: isFirst ? `${topPadding}px` : undefined
+            }}
         >
 
             <div className="max-w-7xl mx-auto px-6 py-20">

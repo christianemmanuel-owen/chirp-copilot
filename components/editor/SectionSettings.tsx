@@ -19,7 +19,13 @@ import {
     ArrowUpLeft,
     Upload,
     Loader2,
-    X
+    X,
+    LayoutGrid,
+    LayoutList,
+    Columns,
+    Maximize,
+    Split,
+    Sidebar as SidebarIcon
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -116,6 +122,241 @@ export default function SectionSettings({
 
     return (
         <div className="space-y-8 py-2 max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-muted-foreground/20">
+
+            {/* Layout Settings (Always visible for all sections) */}
+            <div className="space-y-4">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <Maximize className="size-3" />
+                    Layout Settings
+                </Label>
+                <div className="bg-muted/30 p-4 rounded-xl border border-border/50 space-y-4">
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-[9px] font-bold uppercase text-muted-foreground tracking-wider">Top Offset (px)</Label>
+                            <span className="text-[9px] font-bold text-muted-foreground">{section?.styles?.topPadding ?? 96}px</span>
+                        </div>
+                        <Slider
+                            value={[section?.styles?.topPadding ?? 96]}
+                            min={0}
+                            max={200}
+                            step={4}
+                            onValueChange={([val]) => onChange(background as SectionBackground, {
+                                styles: { ...section?.styles, topPadding: val }
+                            })}
+                        />
+                        <p className="text-[8px] text-muted-foreground italic font-medium">Adjusts spacing from the navbar if this is the first section.</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Variant Selectors based on sectionType */}
+            {sectionType === "catalog-grid" && (
+                <div className="space-y-6">
+                    <div className="space-y-4">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                            <Layers className="size-3" />
+                            Grid Variation
+                        </Label>
+                        <div className="grid grid-cols-5 gap-2 bg-muted/30 p-1 rounded-xl border border-border/50">
+                            {[
+                                { id: 'v1', icon: LayoutGrid, label: 'Grid' },
+                                { id: 'list', icon: LayoutList, label: 'List' },
+                                { id: 'masonry', icon: Columns, label: 'Masonry' },
+                                { id: 'compact', icon: Maximize, label: 'Compact' },
+                                { id: 'split', icon: Split, label: 'Split' }
+                            ].map((v) => (
+                                <Button
+                                    key={v.id}
+                                    variant={section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'v1') ? 'default' : 'ghost'}
+                                    size="icon"
+                                    onClick={() => onChange(background as SectionBackground, { metadata: { ...section?.metadata, variant: v.id } })}
+                                    className={cn(
+                                        "rounded-lg h-9 w-full",
+                                        (section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'v1')) ? "shadow-md" : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                    title={v.label}
+                                >
+                                    <v.icon className="size-4" />
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                            <SidebarIcon className="size-3" />
+                            Filter Layout
+                        </Label>
+                        <div className="grid grid-cols-2 gap-2 bg-muted/30 p-1 rounded-xl border border-border/50">
+                            {[
+                                { id: 'top', label: 'Top Bar' },
+                                { id: 'sidebar', label: 'Sidebar' }
+                            ].map((l) => (
+                                <Button
+                                    key={l.id}
+                                    variant={section?.metadata?.filterLayout === l.id || (!section?.metadata?.filterLayout && l.id === 'top') ? 'default' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => onChange(background as SectionBackground, { metadata: { ...section?.metadata, filterLayout: l.id } })}
+                                    className={cn(
+                                        "rounded-lg text-[10px] font-black uppercase tracking-tight h-8",
+                                        (section?.metadata?.filterLayout === l.id || (!section?.metadata?.filterLayout && l.id === 'top')) ? "shadow-md" : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    {l.label}
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {sectionType === "hero" && (
+                <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Layers className="size-3" />
+                        Hero Variation
+                    </Label>
+                    <div className="grid grid-cols-3 gap-2 bg-muted/30 p-1 rounded-xl border border-border/50">
+                        {[
+                            { id: 'v1', label: 'Pill' },
+                            { id: 'v2', label: 'Split' },
+                            { id: 'v3', label: 'Overlay' }
+                        ].map((v) => (
+                            <Button
+                                key={v.id}
+                                variant={section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'v1') ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => onChange(background as SectionBackground, { metadata: { ...section?.metadata, variant: v.id } })}
+                                className={cn(
+                                    "rounded-lg text-[10px] font-black uppercase tracking-tight h-8",
+                                    (section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'v1')) ? "shadow-md" : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {v.label}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {sectionType === "featured" && (
+                <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Layers className="size-3" />
+                        Featured Variation
+                    </Label>
+                    <div className="grid grid-cols-3 gap-2 bg-muted/30 p-1 rounded-xl border border-border/50">
+                        {[
+                            { id: 'v1', label: 'Grid' },
+                            { id: 'v2', label: 'Carousel' },
+                            { id: 'v3', label: 'Spotlight' }
+                        ].map((v) => (
+                            <Button
+                                key={v.id}
+                                variant={section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'v1') ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => onChange(background as SectionBackground, { metadata: { ...section?.metadata, variant: v.id } })}
+                                className={cn(
+                                    "rounded-lg text-[10px] font-black uppercase tracking-tight h-8",
+                                    (section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'v1')) ? "shadow-md" : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {v.label}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {sectionType === "categories" && (
+                <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Layers className="size-3" />
+                        Category Variation
+                    </Label>
+                    <div className="grid grid-cols-2 gap-2 bg-muted/30 p-1 rounded-xl border border-border/50">
+                        {[
+                            { id: 'v1', label: 'Carousel' },
+                            { id: 'v2', label: 'Grid' }
+                        ].map((v) => (
+                            <Button
+                                key={v.id}
+                                variant={section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'v1') ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => onChange(background as SectionBackground, { metadata: { ...section?.metadata, variant: v.id } })}
+                                className={cn(
+                                    "rounded-lg text-[10px] font-black uppercase tracking-tight h-8",
+                                    (section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'v1')) ? "shadow-md" : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {v.label}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {sectionType === "about" && (
+                <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Layers className="size-3" />
+                        About Variation
+                    </Label>
+                    <div className="grid grid-cols-3 gap-2 bg-muted/30 p-1 rounded-xl border border-border/50">
+                        {[
+                            { id: 'v1', label: 'Overlay' },
+                            { id: 'v2', label: 'Centered' },
+                            { id: 'v3', label: 'Split' },
+                            { id: 'v4', label: 'Features' },
+                            { id: 'v5', label: 'Quote' }
+                        ].map((v) => (
+                            <Button
+                                key={v.id}
+                                variant={section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'v1') ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => onChange(background as SectionBackground, { metadata: { ...section?.metadata, variant: v.id } })}
+                                className={cn(
+                                    "rounded-lg text-[10px] font-black uppercase tracking-tight h-8",
+                                    (section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'v1')) ? "shadow-md" : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {v.label}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {sectionType === "collection-spotlight" && (
+                <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Layers className="size-3" />
+                        Spotlight Variation
+                    </Label>
+                    <div className="grid grid-cols-2 gap-2 bg-muted/30 p-1 rounded-xl border border-border/50">
+                        {[
+                            { id: 'glass-carousel', label: 'Carousel' },
+                            { id: 'banner-carousel', label: 'Banner' },
+                            { id: 'split-reveal', label: 'Split' },
+                            { id: 'bento-spotlight', label: 'Bento' },
+                            { id: 'minimal-banner', label: 'Minimal' }
+                        ].map((v) => (
+                            <Button
+                                key={v.id}
+                                variant={section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'glass-carousel') ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => onChange(background as SectionBackground, { metadata: { ...section?.metadata, variant: v.id } })}
+                                className={cn(
+                                    "rounded-lg text-[10px] font-black uppercase tracking-tight h-8",
+                                    (section?.metadata?.variant === v.id || (!section?.metadata?.variant && v.id === 'glass-carousel')) ? "shadow-md" : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {v.label}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Variant Selector for Footer */}
             {sectionType === "footer" && (

@@ -12,6 +12,14 @@ import { Switch } from "@/components/ui/switch"
 import { formatCurrency } from "@/lib/utils"
 import type { CatalogData, CatalogVariant } from "@/lib/storefront-data"
 import { useCart } from "@/lib/cart"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import { SlidersHorizontal } from "lucide-react"
 
 declare global {
   interface Window {
@@ -388,6 +396,172 @@ export default function CatalogClient({ data }: CatalogClientProps) {
     }
   }, [])
 
+  const FilterContent = () => (
+    <div className="space-y-8">
+      <div>
+        <label htmlFor="catalog-search" className="sr-only">
+          Search products
+        </label>
+        <input
+          id="catalog-search"
+          type="text"
+          placeholder="Search products..."
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+      </div>
+
+      {data.discountFilter && discountVariantCount > 0 && (
+        <div className="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Discount campaign</p>
+              <p className="text-xs text-muted-foreground">{data.discountFilter.name}</p>
+            </div>
+            <Switch
+              checked={showDiscountedOnly}
+              onCheckedChange={setShowDiscountedOnly}
+              aria-label="Show discounted items only"
+            />
+          </div>
+          {data.discountFilter.description && (
+            <p className="mt-2 text-xs text-muted-foreground">{data.discountFilter.description}</p>
+          )}
+          <p className="mt-2 text-xs text-muted-foreground">
+            {showDiscountedOnly
+              ? `Showing ${discountVariantCount} discounted ${discountVariantCount === 1 ? "item" : "items"}.`
+              : `Toggle to focus on ${discountVariantCount} discounted ${discountVariantCount === 1 ? "item" : "items"
+              }.`}
+          </p>
+        </div>
+      )}
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setExpandedCategory((value) => !value)}
+          className="flex w-full items-center justify-between text-left text-lg font-semibold transition hover:text-primary"
+        >
+          Categories
+          <ChevronDown
+            className={`h-5 w-5 transition-transform ${expandedCategory ? "rotate-180" : ""}`}
+          />
+        </button>
+        {expandedCategory && (
+          <div className="mt-4 space-y-3">
+            {data.categoryFilters.map((category) => (
+              <label key={category} className="flex items-center gap-3 text-sm">
+                <input
+                  type="radio"
+                  name="category"
+                  value={category}
+                  checked={selectedCategory === category}
+                  onChange={(event) => setSelectedCategory(event.target.value)}
+                  className="h-4 w-4 accent-primary"
+                />
+                <span className="text-muted-foreground transition hover:text-foreground">{category}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setExpandedBrand((value) => !value)}
+          className="flex w-full items-center justify-between text-left text-lg font-semibold transition hover:text-primary"
+        >
+          Brands
+          <ChevronDown
+            className={`h-5 w-5 transition-transform ${expandedBrand ? "rotate-180" : ""}`}
+          />
+        </button>
+        {expandedBrand && (
+          <div className="mt-4 space-y-3">
+            {data.brandFilters.map((brand) => (
+              <label key={brand} className="flex items-center gap-3 text-sm">
+                <input
+                  type="radio"
+                  name="brand"
+                  value={brand}
+                  checked={selectedBrand === brand}
+                  onChange={(event) => setSelectedBrand(event.target.value)}
+                  className="h-4 w-4 accent-primary"
+                />
+                <span className="text-muted-foreground transition hover:text-foreground">{brand}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setExpandedPrice((value) => !value)}
+          className="flex w-full items-center justify-between text-left text-lg font-semibold transition hover:text-primary"
+        >
+          Price Range
+          <ChevronDown
+            className={`h-5 w-5 transition-transform ${expandedPrice ? "rotate-180" : ""}`}
+          />
+        </button>
+        {expandedPrice && (
+          <div className="mt-4 space-y-4">
+            <Slider
+              min={data.priceRange[0]}
+              max={data.priceRange[1]}
+              step={1}
+              value={priceRange}
+              onValueChange={handlePriceSliderChange}
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{formatCurrency(priceRange[0])}</span>
+              <span>{formatCurrency(priceRange[1])}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label htmlFor="min-price" className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Min
+                </label>
+                <input
+                  id="min-price"
+                  type="number"
+                  min={data.priceRange[0]}
+                  max={data.priceRange[1]}
+                  step={1}
+                  value={minPriceInput}
+                  onChange={(event) => setMinPriceInput(event.target.value)}
+                  onBlur={handleMinInputBlur}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <span className="pt-6 text-muted-foreground">-</span>
+              <div className="flex-1">
+                <label htmlFor="max-price" className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Max
+                </label>
+                <input
+                  id="max-price"
+                  type="number"
+                  min={data.priceRange[0]}
+                  max={data.priceRange[1]}
+                  step={1}
+                  value={maxPriceInput}
+                  onChange={(event) => setMaxPriceInput(event.target.value)}
+                  onBlur={handleMaxInputBlur}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <div className="space-y-12 pb-16">
       <BannerCarousel slides={data.hero.slides} />
@@ -395,171 +569,35 @@ export default function CatalogClient({ data }: CatalogClientProps) {
       <div className="min-h-[700px] bg-background">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-12 lg:flex-row">
-            <aside className="w-full flex-shrink-0 space-y-8 lg:w-72">
-              <div>
-                <label htmlFor="catalog-search" className="sr-only">
-                  Search products
-                </label>
-                <input
-                  id="catalog-search"
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-
-              {data.discountFilter && discountVariantCount > 0 && (
-                <div className="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-sm">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">Discount campaign</p>
-                      <p className="text-xs text-muted-foreground">{data.discountFilter.name}</p>
-                    </div>
-                    <Switch
-                      checked={showDiscountedOnly}
-                      onCheckedChange={setShowDiscountedOnly}
-                      aria-label="Show discounted items only"
-                    />
-                  </div>
-                  {data.discountFilter.description && (
-                    <p className="mt-2 text-xs text-muted-foreground">{data.discountFilter.description}</p>
-                  )}
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {showDiscountedOnly
-                      ? `Showing ${discountVariantCount} discounted ${discountVariantCount === 1 ? "item" : "items"}.`
-                      : `Toggle to focus on ${discountVariantCount} discounted ${discountVariantCount === 1 ? "item" : "items"
-                      }.`}
-                  </p>
-                </div>
-              )}
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setExpandedCategory((value) => !value)}
-                  className="flex w-full items-center justify-between text-left text-lg font-semibold transition hover:text-primary"
-                >
-                  Categories
-                  <ChevronDown
-                    className={`h-5 w-5 transition-transform ${expandedCategory ? "rotate-180" : ""}`}
-                  />
-                </button>
-                {expandedCategory && (
-                  <div className="mt-4 space-y-3">
-                    {data.categoryFilters.map((category) => (
-                      <label key={category} className="flex items-center gap-3 text-sm">
-                        <input
-                          type="radio"
-                          name="category"
-                          value={category}
-                          checked={selectedCategory === category}
-                          onChange={(event) => setSelectedCategory(event.target.value)}
-                          className="h-4 w-4 accent-primary"
-                        />
-                        <span className="text-muted-foreground transition hover:text-foreground">{category}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setExpandedBrand((value) => !value)}
-                  className="flex w-full items-center justify-between text-left text-lg font-semibold transition hover:text-primary"
-                >
-                  Brands
-                  <ChevronDown
-                    className={`h-5 w-5 transition-transform ${expandedBrand ? "rotate-180" : ""}`}
-                  />
-                </button>
-                {expandedBrand && (
-                  <div className="mt-4 space-y-3">
-                    {data.brandFilters.map((brand) => (
-                      <label key={brand} className="flex items-center gap-3 text-sm">
-                        <input
-                          type="radio"
-                          name="brand"
-                          value={brand}
-                          checked={selectedBrand === brand}
-                          onChange={(event) => setSelectedBrand(event.target.value)}
-                          className="h-4 w-4 accent-primary"
-                        />
-                        <span className="text-muted-foreground transition hover:text-foreground">{brand}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setExpandedPrice((value) => !value)}
-                  className="flex w-full items-center justify-between text-left text-lg font-semibold transition hover:text-primary"
-                >
-                  Price Range
-                  <ChevronDown
-                    className={`h-5 w-5 transition-transform ${expandedPrice ? "rotate-180" : ""}`}
-                  />
-                </button>
-                {expandedPrice && (
-                  <div className="mt-4 space-y-4">
-                    <Slider
-                      min={data.priceRange[0]}
-                      max={data.priceRange[1]}
-                      step={1}
-                      value={priceRange}
-                      onValueChange={handlePriceSliderChange}
-                    />
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{formatCurrency(priceRange[0])}</span>
-                      <span>{formatCurrency(priceRange[1])}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <label htmlFor="min-price" className="mb-1 block text-xs font-medium text-muted-foreground">
-                          Min
-                        </label>
-                        <input
-                          id="min-price"
-                          type="number"
-                          min={data.priceRange[0]}
-                          max={data.priceRange[1]}
-                          step={1}
-                          value={minPriceInput}
-                          onChange={(event) => setMinPriceInput(event.target.value)}
-                          onBlur={handleMinInputBlur}
-                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        />
-                      </div>
-                      <span className="pt-6 text-muted-foreground">-</span>
-                      <div className="flex-1">
-                        <label htmlFor="max-price" className="mb-1 block text-xs font-medium text-muted-foreground">
-                          Max
-                        </label>
-                        <input
-                          id="max-price"
-                          type="number"
-                          min={data.priceRange[0]}
-                          max={data.priceRange[1]}
-                          step={1}
-                          value={maxPriceInput}
-                          onChange={(event) => setMaxPriceInput(event.target.value)}
-                          onBlur={handleMaxInputBlur}
-                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+            {/* Desktop Filters */}
+            <aside className="hidden w-full flex-shrink-0 lg:block lg:w-72">
+              <FilterContent />
             </aside>
 
             <section className="flex-1">
+              {/* Mobile Filter Toggle */}
+              <div className="mb-8 flex items-center justify-between lg:hidden border-b pb-4">
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <button className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-foreground hover:text-primary transition-colors">
+                      <SlidersHorizontal className="size-4" /> Filters
+                    </button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                    <SheetHeader className="pb-6">
+                      <SheetTitle className="text-xl font-black uppercase tracking-tight">Catalog Filters</SheetTitle>
+                    </SheetHeader>
+                    <div className="px-1 overflow-y-auto h-full pb-20">
+                      <FilterContent />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+
+                <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                  {filteredVariants.length} Items Found
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {filteredVariants.map((variant) => (
                   <ProductCard key={variant.id} variant={variant} onAddToCart={handleAddToCart} />

@@ -2,6 +2,7 @@ import { SectionHeader } from "@/app/experimental-home/_components/SectionHeader
 import { getSectionStyles, type SectionBackground } from "@/lib/storefront-theme"
 import { Quote } from "lucide-react"
 import { AVAILABLE_ICONS, type IconName } from "@/lib/icons"
+import { useMemo } from "react"
 
 interface AboutUsSectionProps {
     businessName?: string
@@ -12,9 +13,11 @@ interface AboutUsSectionProps {
     background?: SectionBackground
     hiddenFields?: string[]
     variant?: string
+    isFirst?: boolean
+    topPadding?: number
 }
 
-export default function AboutUsSection({ businessName = process.env.NEXT_PUBLIC_BUSINESS_NAME || "Storefront", title, content, styles, sectionId, background, hiddenFields, variant = "v1" }: AboutUsSectionProps) {
+export default function AboutUsSection({ businessName = process.env.NEXT_PUBLIC_BUSINESS_NAME || "Storefront", title, content, styles, sectionId, background, hiddenFields, variant = "v1", isFirst, topPadding = 96 }: AboutUsSectionProps) {
     const isHidden = (key: string) => hiddenFields?.includes(key)
     const sectionStyles = getSectionStyles(background)
 
@@ -201,9 +204,13 @@ export default function AboutUsSection({ businessName = process.env.NEXT_PUBLIC_
     if (variant === "v2") {
         return (
             <section
-                className="relative min-h-[60vh] flex items-center justify-center overflow-hidden py-24"
+                id={sectionId}
+                style={{
+                    ...sectionStyleContainer,
+                    paddingTop: isFirst ? `${topPadding + 20}px` : "20px"
+                }}
+                className="pb-20 px-6 md:px-12 bg-white relative min-h-[60vh] flex items-center justify-center overflow-hidden"
                 data-section-id={sectionId}
-                style={sectionStyleContainer}
             >
                 <div className="max-w-4xl mx-auto px-6 text-center space-y-10">
                     {!isHidden("aboutTitle") && (
@@ -230,9 +237,13 @@ export default function AboutUsSection({ businessName = process.env.NEXT_PUBLIC_
     // Default v1: Centered Overlay
     return (
         <section
-            className="relative min-h-[80vh] flex items-center justify-center overflow-hidden py-24"
+            id={sectionId}
+            style={{
+                ...sectionStyleContainer,
+                paddingTop: isFirst ? `${topPadding + 128}px` : "128px"
+            }}
+            className="pb-32 px-6 overflow-hidden relative min-h-[80vh] flex items-center justify-center"
             data-section-id={sectionId}
-            style={sectionStyleContainer}
         >
             {/* Background Image Layer */}
             {overlayEnabled && background?.image && (

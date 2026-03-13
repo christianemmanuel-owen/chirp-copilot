@@ -75,11 +75,25 @@ export interface StorefrontThemeConfig {
     }
     layout?: Array<{
       id: string
-      type: 'hero' | 'categories' | 'about' | 'featured' | 'footer'
+      type: 'hero' | 'categories' | 'about' | 'featured' | 'footer' | 'catalog-grid'
       enabled: boolean
       background?: SectionBackground
       hiddenFields?: string[]
-      content?: Record<string, any>
+      metadata?: Record<string, any>
+      styles?: Record<string, {
+        fontFamily?: string
+        fontSize?: string
+        color?: string
+        [key: string]: any
+      }>
+    }>
+    catalogLayout?: Array<{
+      id: string
+      type: 'hero' | 'categories' | 'about' | 'featured' | 'footer' | 'catalog-grid'
+      enabled: boolean
+      background?: SectionBackground
+      hiddenFields?: string[]
+      metadata?: Record<string, any>
       styles?: Record<string, {
         fontFamily?: string
         fontSize?: string
@@ -291,6 +305,10 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
         { id: "about-1", type: "about", enabled: false, hiddenFields: [] },
         { id: "featured-1", type: "featured", enabled: false, hiddenFields: [] },
         { id: "footer-1", type: "footer", enabled: true, hiddenFields: [] },
+      ],
+      catalogLayout: [
+        { id: "catalog-grid-1", type: "catalog-grid", enabled: true, hiddenFields: [] },
+        { id: "footer-1", type: "footer", enabled: true, hiddenFields: [] },
       ]
     }
     return base
@@ -356,6 +374,10 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
         { id: "about-1", type: "about", enabled: exp.aboutUsEnabled ?? true, hiddenFields: [] },
         { id: "featured-1", type: "featured", enabled: exp.featuredProductsEnabled ?? true, hiddenFields: [] },
         { id: "footer-1", type: "footer", enabled: true, hiddenFields: [] },
+      ],
+      catalogLayout: Array.isArray(exp.catalogLayout) ? exp.catalogLayout : [
+        { id: "catalog-grid-1", type: "catalog-grid", enabled: true, hiddenFields: [] },
+        { id: "footer-1", type: "footer", enabled: true, hiddenFields: [] },
       ]
     }
   } else {
@@ -388,6 +410,10 @@ export const buildThemeConfig = (value?: unknown): StorefrontThemeConfig => {
         { id: "categories-1", type: "categories", enabled: true, hiddenFields: [] },
         { id: "about-1", type: "about", enabled: false, hiddenFields: [] },
         { id: "featured-1", type: "featured", enabled: false, hiddenFields: [] },
+        { id: "footer-1", type: "footer", enabled: true, hiddenFields: [] },
+      ],
+      catalogLayout: [
+        { id: "catalog-grid-1", type: "catalog-grid", enabled: true, hiddenFields: [] },
         { id: "footer-1", type: "footer", enabled: true, hiddenFields: [] },
       ]
     }

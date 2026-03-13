@@ -7,13 +7,18 @@ import { SectionHeader } from "./SectionHeader"
 
 interface CategoryGridSectionProps {
     tiles: CollectionTile[]
+    isFirst?: boolean
+    topPadding?: number
 }
 
-export default function CategoryGridSection({ tiles }: CategoryGridSectionProps) {
+export default function CategoryGridSection({ tiles, isFirst, topPadding = 96 }: CategoryGridSectionProps) {
     if (!tiles || tiles.length === 0) return null
 
     return (
-        <section className="py-24 bg-white overflow-hidden">
+        <section
+            className="pb-24 bg-white overflow-hidden"
+            style={{ paddingTop: isFirst ? `${topPadding + 96}px` : "96px" }}
+        >
             <div className="max-w-7xl mx-auto px-6">
                 <SectionHeader
                     title="BROWSE BY CATEGORY"

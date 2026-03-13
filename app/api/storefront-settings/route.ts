@@ -239,7 +239,14 @@ const buildSuccess = (payload: {
     }
     layout: Array<{
       id: string
-      type: 'hero' | 'categories' | 'about' | 'featured' | 'footer'
+      type: 'hero' | 'categories' | 'about' | 'featured' | 'footer' | 'catalog-grid' | 'collection-spotlight'
+      enabled: boolean
+      content?: Record<string, any>
+      styles?: Record<string, any>
+    }>
+    catalogLayout?: Array<{
+      id: string
+      type: 'hero' | 'categories' | 'about' | 'featured' | 'footer' | 'catalog-grid' | 'collection-spotlight'
       enabled: boolean
       content?: Record<string, any>
       styles?: Record<string, any>
@@ -316,6 +323,10 @@ export async function GET() {
           { id: "about-1", type: "about", enabled: true },
           { id: "featured-1", type: "featured", enabled: true },
           { id: "footer-1", type: "footer", enabled: true },
+        ],
+        catalogLayout: theme.experimental?.catalogLayout ?? [
+          { id: "catalog-grid-1", type: "catalog-grid", enabled: true },
+          { id: "footer-1", type: "footer", enabled: true }
         ]
       } as any,
     })
@@ -549,7 +560,8 @@ export async function PATCH(request: Request) {
             ...(themeConfigPayload.experimental?.navbar || {}),
             ...(exp.navbar || {})
           },
-          layout: exp.layout ?? (themeConfigPayload.experimental?.layout)
+          layout: exp.layout ?? (themeConfigPayload.experimental?.layout),
+          catalogLayout: exp.catalogLayout ?? (themeConfigPayload.experimental?.catalogLayout)
         }
       }
     }
@@ -685,6 +697,10 @@ export async function PATCH(request: Request) {
           { id: "about-1", type: "about", enabled: true },
           { id: "featured-1", type: "featured", enabled: true },
           { id: "footer-1", type: "footer", enabled: true },
+        ],
+        catalogLayout: appliedTheme.experimental?.catalogLayout ?? [
+          { id: "catalog-grid-1", type: "catalog-grid", enabled: true },
+          { id: "footer-1", type: "footer", enabled: true }
         ]
       },
     })

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Sparkles, TrendingUp } from "lucide-react"
+import { ChevronRight, ArrowRight, Play, Sparkles, Star, TrendingUp } from "lucide-react"
+import { cn } from "@/lib/utils"
 import Link from "next/link"
 import type { NavCollectionItem, HeroProductHighlight } from "@/lib/storefront-data"
 import { getSectionStyles, type SectionBackground } from "@/lib/storefront-theme"
@@ -17,9 +18,11 @@ interface HeroSectionProps {
     background?: SectionBackground
     hiddenFields?: string[]
     variant?: string
+    isFirst?: boolean
+    topPadding?: number
 }
 
-export default function HeroSection({ categories, featuredItems, title, subtitle, titleHighlight, description, heroCTALink, styles, sectionId, background, hiddenFields, variant = "v1" }: HeroSectionProps) {
+export default function HeroSection({ categories, featuredItems, title, subtitle, titleHighlight, description, heroCTALink, styles, sectionId, background, hiddenFields, variant = "v1", isFirst, topPadding = 96 }: HeroSectionProps) {
     const heroCTAStyle = styles?.heroCTA || {}
     const sectionStyles = getSectionStyles(background)
 
@@ -46,11 +49,12 @@ export default function HeroSection({ categories, featuredItems, title, subtitle
 
         return (
             <section
-                className="relative min-h-[80vh] flex items-center justify-center overflow-hidden pt-52 pb-24"
+                className="relative min-h-[80vh] flex items-center justify-center overflow-hidden pb-24"
                 data-section-id={sectionId}
                 style={{
                     backgroundColor: background?.color ? hexToRgba(background.color, background.colorOpacity ?? 1) : undefined,
                     ...sectionStyles,
+                    paddingTop: isFirst ? `${topPadding + 208}px` : "208px",
                     // Handle image independently if overlay is enabled to get the muting effect
                     backgroundImage: overlayEnabled ? 'none' : sectionStyles.backgroundImage
                 }}
@@ -137,10 +141,18 @@ export default function HeroSection({ categories, featuredItems, title, subtitle
             <section
                 className="relative min-h-[90vh] flex items-center bg-background"
                 data-section-id={sectionId}
-                style={sectionStyles}
+                style={{
+                    ...sectionStyles,
+                    paddingTop: isFirst ? `${topPadding}px` : undefined
+                }}
             >
                 <div className="grid grid-cols-1 lg:grid-cols-2 w-full h-full min-h-[90vh]">
-                    <div className="flex items-center justify-center px-8 lg:px-24 pt-40 pb-8 lg:pt-48 lg:pb-24 bg-white order-2 lg:order-1">
+                    <div className={cn(
+                        "flex items-center justify-center px-8 lg:px-24 pb-8 lg:pb-24 bg-white order-2 lg:order-1",
+                        isFirst ? "" : "pt-40 lg:pt-48"
+                    )}
+                        style={isFirst ? { paddingTop: `${topPadding / 2}px` } : undefined}
+                    >
                         <div className="max-w-xl w-full space-y-10">
                             <div className="space-y-4">
                                 {!isHidden("heroTitleHighlight") && (
@@ -206,9 +218,12 @@ export default function HeroSection({ categories, featuredItems, title, subtitle
     // Default Variation (v1): Pill Highlight
     return (
         <section
-            className="relative pt-52 pb-24 overflow-hidden bg-background"
+            className="relative pb-24 overflow-hidden bg-background"
             data-section-id={sectionId}
-            style={sectionStyles}
+            style={{
+                ...sectionStyles,
+                paddingTop: isFirst ? `${topPadding + 208}px` : "208px"
+            }}
         >
 
             {/* Background Ornaments */}

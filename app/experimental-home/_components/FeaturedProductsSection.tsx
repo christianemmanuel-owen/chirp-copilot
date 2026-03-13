@@ -19,9 +19,11 @@ interface FeaturedProductsSectionProps {
     background?: SectionBackground
     hiddenFields?: string[]
     variant?: string
+    topPadding?: number
+    isFirst?: boolean
 }
 
-export default function FeaturedProductsSection({ initialProducts, title, subtitle, featuredCTALink, styles, sectionId, background, hiddenFields, variant = "v1" }: FeaturedProductsSectionProps) {
+export default function FeaturedProductsSection({ initialProducts, title, subtitle, featuredCTALink, styles, sectionId, background, hiddenFields, variant = "v1", isFirst, topPadding = 96 }: FeaturedProductsSectionProps) {
     const { addItem: addCartItem } = useCart()
     const sectionStyles = getSectionStyles(background)
     const isHidden = (key: string) => hiddenFields?.includes(key)
@@ -48,9 +50,12 @@ export default function FeaturedProductsSection({ initialProducts, title, subtit
 
     return (
         <section
-            className="py-32 bg-background text-foreground overflow-hidden"
+            className="bg-background text-foreground overflow-hidden pb-32"
             data-section-id={sectionId}
-            style={sectionStyles}
+            style={{
+                ...sectionStyles,
+                paddingTop: isFirst ? `${topPadding + 128}px` : "128px"
+            }}
         >
 
             <div className="max-w-7xl mx-auto px-6">

@@ -21,11 +21,16 @@ interface FeaturedProductCardProps {
     variant: CatalogVariant
     onAddToCart: (item: AddToCartPayload) => void
     isSpotlight?: boolean
+    isCompact?: boolean
 }
 
-export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight }: FeaturedProductCardProps) {
+export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight, isCompact }: FeaturedProductCardProps) {
     const [hovered, setHovered] = useState(false)
     const [quantity, setQuantity] = useState(1)
+    const [selectedSizeIndex, setSelectedSizeIndex] = useState(() => {
+        const firstInStock = variant.sizes.findIndex(s => s.stock > 0)
+        return firstInStock !== -1 ? firstInStock : 0
+    })
     const isPreorder = Boolean(variant.isPreorder)
 
     const discountPercent = variant.discountPercent ?? null
@@ -35,22 +40,30 @@ export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight 
         [discountPercent, hasDiscount],
     )
 
+    const selectedSize = variant.sizes[selectedSizeIndex]
+
     const basePriceLabel = useMemo(() => {
+        if (selectedSize) {
+            return formatCurrency(selectedSize.price)
+        }
         if (variant.minPrice === variant.maxPrice) {
             return formatCurrency(variant.minPrice)
         }
         return `${formatCurrency(variant.minPrice)} - ${formatCurrency(variant.maxPrice)}`
-    }, [variant.maxPrice, variant.minPrice])
+    }, [variant.maxPrice, variant.minPrice, selectedSize])
 
     const discountedPriceLabel = useMemo(() => {
         if (!hasDiscount) return null
+        if (selectedSize) {
+            return formatCurrency(selectedSize.price * discountMultiplier)
+        }
         const min = variant.minPrice * discountMultiplier
         const max = variant.maxPrice * discountMultiplier
         if (Math.abs(min - max) < 0.01) {
             return formatCurrency(min)
         }
         return `${formatCurrency(min)} - ${formatCurrency(max)}`
-    }, [discountMultiplier, hasDiscount, variant.maxPrice, variant.minPrice])
+    }, [discountMultiplier, hasDiscount, variant.maxPrice, variant.minPrice, selectedSize])
 
     const discountLabel = useMemo(() => {
         if (!hasDiscount || typeof discountPercent !== "number") return null
@@ -64,16 +77,15 @@ export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight 
         e.preventDefault()
         e.stopPropagation()
 
-        const defaultSize = variant.sizes.find(s => s.stock > 0) || variant.sizes[0]
-        if (!defaultSize || isOutOfStock) return
+        if (!selectedSize || isOutOfStock) return
 
         onAddToCart({
             variantId: variant.id,
             productId: variant.productId,
             name: variant.displayName,
             image: variant.image,
-            size: defaultSize.label === "Default" ? null : defaultSize.label,
-            price: hasDiscount ? Number((defaultSize.price * discountMultiplier).toFixed(2)) : defaultSize.price,
+            size: selectedSize.label === "Default" ? null : selectedSize.label,
+            price: hasDiscount ? Number((selectedSize.price * discountMultiplier).toFixed(2)) : selectedSize.price,
             quantity: quantity,
             brandName: variant.brandName,
         })
@@ -84,13 +96,14 @@ export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight 
         <article
             className={cn(
                 "group relative w-full rounded-[2.5rem] overflow-hidden isolate transform-gpu shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.2)] transition-all duration-700 ease-out border border-white/10 z-10",
-                isSpotlight ? "aspect-auto h-full min-h-[400px]" : "aspect-[3/4]"
+                isSpotlight ? "aspect-auto h-full min-h-[400px]" : "aspect-[3/4]",
+                isCompact && "rounded-2xl"
             )}
             style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
-                clipPath: 'inset(0 round 2.5rem)',
-                WebkitClipPath: 'inset(0 round 2.5rem)',
+                clipPath: `inset(0 round ${isCompact ? '1rem' : '2.5rem'})`,
+                WebkitClipPath: `inset(0 round ${isCompact ? '1rem' : '2.5rem'})`,
                 WebkitMaskImage: '-webkit-radial-gradient(white, black)'
             } as React.CSSProperties}
             onMouseEnter={() => setHovered(true)}
@@ -111,7 +124,10 @@ export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight 
             </div>
 
             {/* Content Container */}
-            <div className="relative z-10 h-full flex flex-col justify-end p-8 text-white">
+            <div className={cn(
+                "relative z-10 h-full flex flex-col justify-end text-white",
+                isCompact ? "p-4" : "p-8"
+            )}>
                 <Link href={variant.detailPath} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 mb-4 text-left group-hover:scale-[1.02] transition-transform duration-500">
                     {/* Badges */}
                     <div className="absolute top-6 left-6 lg:top-10 lg:left-10 flex flex-col gap-2 pointer-events-none">
@@ -140,7 +156,7 @@ export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight 
                         )}
                         <h3 className={cn(
                             "font-black tracking-tight leading-[0.9] drop-shadow-md uppercase",
-                            isSpotlight ? "text-4xl md:text-6xl lg:text-7xl" : "text-2xl"
+                            isSpotlight ? "text-4xl md:text-6xl lg:text-7xl" : isCompact ? "text-sm" : "text-2xl"
                         )}>
                             {variant.productName}
                         </h3>
@@ -149,14 +165,45 @@ export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight 
                     <div className="flex items-center gap-3 mb-2">
                         {discountedPriceLabel ? (
                             <div className="flex items-center gap-2">
-                                <span className={cn("font-black text-white", isSpotlight ? "text-3xl" : "text-xl")}>{discountedPriceLabel}</span>
-                                <span className="text-sm text-white/50 line-through font-semibold">{basePriceLabel}</span>
+                                <span className={cn("font-black text-white", isSpotlight ? "text-3xl" : isCompact ? "text-xs" : "text-xl")}>{discountedPriceLabel}</span>
+                                {!isCompact && <span className="text-sm text-white/50 line-through font-semibold">{basePriceLabel}</span>}
                             </div>
                         ) : (
-                            <span className={cn("font-black text-white", isSpotlight ? "text-3xl" : "text-xl")}>{basePriceLabel}</span>
+                            <span className={cn("font-black text-white", isSpotlight ? "text-3xl" : isCompact ? "text-xs" : "text-xl")}>{basePriceLabel}</span>
                         )}
                     </div>
                 </Link>
+
+                {/* Size Selection */}
+                {variant.sizes.length > 1 && variant.sizes[0].label !== "Default" && (
+                    <div className={cn(
+                        "transition-all duration-500 mb-4",
+                        isCompact ? "flex gap-1 overflow-x-auto no-scrollbar" : "flex flex-wrap gap-2",
+                        hovered || isSpotlight ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none lg:opacity-100 lg:translate-y-0 lg:pointer-events-auto"
+                    )}>
+                        {variant.sizes.map((size, idx) => {
+                            const isSelected = selectedSizeIndex === idx
+                            const isSizeOutOfStock = !isPreorder && size.stock <= 0
+                            return (
+                                <button
+                                    key={size.label}
+                                    disabled={isSizeOutOfStock}
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedSizeIndex(idx); }}
+                                    className={cn(
+                                        "transition-all duration-300 rounded-full font-black uppercase tracking-widest flex items-center justify-center border-2",
+                                        isCompact ? "h-6 px-2 text-[8px]" : "h-9 px-4 text-[10px]",
+                                        isSelected
+                                            ? "bg-white text-black border-white shadow-lg shadow-white/20"
+                                            : "bg-white/10 text-white border-white/20 hover:border-white/50",
+                                        isSizeOutOfStock && "opacity-20 cursor-not-allowed strike-through"
+                                    )}
+                                >
+                                    {size.label}
+                                </button>
+                            )
+                        })}
+                    </div>
+                )}
 
                 {/* Action Row - slides up on hover for a cleaner look */}
                 <div className={cn(
@@ -165,19 +212,22 @@ export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight 
                 )}>
                     <div className="flex items-center justify-between gap-4">
                         {/* Quantity Selector */}
-                        <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-4 py-2">
+                        <div className={cn(
+                            "flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-full",
+                            isCompact ? "gap-2 px-2 py-1" : "gap-4 px-4 py-2"
+                        )}>
                             <button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQuantity(Math.max(1, quantity - 1)) }}
                                 className="text-white/70 hover:text-white transition-colors outline-none"
                             >
-                                <Minus className="size-3.5" strokeWidth={3} />
+                                <Minus className={isCompact ? "size-2.5" : "size-3.5"} strokeWidth={3} />
                             </button>
-                            <span className="w-4 text-center text-white font-black text-sm">{quantity}</span>
+                            <span className={cn("text-center text-white font-black", isCompact ? "w-3 text-xs" : "w-4 text-sm")}>{quantity}</span>
                             <button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQuantity(quantity + 1) }}
                                 className="text-white/70 hover:text-white transition-colors outline-none"
                             >
-                                <Plus className="size-3.5" strokeWidth={3} />
+                                <Plus className={isCompact ? "size-2.5" : "size-3.5"} strokeWidth={3} />
                             </button>
                         </div>
 
@@ -186,11 +236,12 @@ export default function FeaturedProductCard({ variant, onAddToCart, isSpotlight 
                             onClick={handleAddToCart}
                             disabled={isOutOfStock}
                             className={cn(
-                                "flex-1 bg-white hover:bg-white/90 text-black shadow-xl transition-all rounded-full py-3.5 px-6 text-[10px] font-black uppercase tracking-widest",
+                                "flex-1 bg-white hover:bg-white/90 text-black shadow-xl transition-all rounded-full font-black uppercase tracking-widest",
+                                isCompact ? "py-2 px-3 text-[8px]" : "py-3.5 px-6 text-[10px]",
                                 isOutOfStock && "opacity-50 cursor-not-allowed"
                             )}
                         >
-                            {isOutOfStock ? "Sold Out" : "Add to Cart"}
+                            {isOutOfStock ? "Sold Out" : "Add"}
                         </button>
                     </div>
                 </div>
