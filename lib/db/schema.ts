@@ -275,6 +275,34 @@ export const discountCampaignVariants = sqliteTable("discount_campaign_variants"
     uniqueVariant: uniqueIndex("dc_variant_unique").on(table.campaignId, table.variantId),
 }));
 
+// --- Feature Entitlements & Maintenance ---
+
+/**
+ * Entitlements for specific projects.
+ * Used to enable/disable features like "omnichannel" or "analytics" on a per-project basis.
+ */
+export const projectFeatures = sqliteTable("project_features", {
+    projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    featureKey: text("feature_key").notNull(), // e.g. "omnichannel", "advanced-analytics"
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+    expiresAt: integer("expires_at", { mode: "timestamp" }),
+    metadata: text("metadata", { mode: "json" }).notNull().default("{}"),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+}, (table) => ({
+    pk: primaryKey({ columns: [table.projectId, table.featureKey] }),
+}));
+
+/**
+ * Global maintenance toggles for features.
+ * Used by developers to disable features for fixes without affecting user subscriptions.
+ */
+export const maintenanceOverrides = sqliteTable("maintenance_overrides", {
+    featureKey: text("feature_key").primaryKey(), // e.g. "omnichannel", "all"
+    isDisabled: integer("is_disabled", { mode: "boolean" }).notNull().default(false),
+    message: text("message"), // Optional message to show users (e.g. "Currently down for maintenance")
+    updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
 // --- Relations ---
 
 export const projectsRelations = relations(projects, ({ many, one }) => ({
@@ -290,6 +318,14 @@ export const projectsRelations = relations(projects, ({ many, one }) => ({
     instagramConnections: many(instagramConnections),
     instagramMessages: many(instagramMessages),
     discountCampaigns: many(discountCampaigns),
+    projectFeatures: many(projectFeatures),
+}));
+
+export const projectFeaturesRelations = relations(projectFeatures, ({ one }) => ({
+    project: one(projects, {
+        fields: [projectFeatures.projectId],
+        references: [projects.id],
+    }),
 }));
 
 export const brandsRelations = relations(brands, ({ one, many }) => ({
