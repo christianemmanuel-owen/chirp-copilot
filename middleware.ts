@@ -8,8 +8,8 @@ import { getDb } from "@/lib/db"
 import { projects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
-// Define admin subdomains that should not be treated as tenant slugs
-const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth"]
+// Define admin subdomains or project root names that should not be treated as tenant slugs
+const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "chirp-mvp"]
 
 /**
  * Main Middleware Handler
@@ -23,7 +23,30 @@ export default auth(async (request: NextRequest & { auth: any }) => {
 
   // 1. Resolve tenant from subdomain
   const parts = hostname.split('.')
-  const tenantSlug = parts.length > 2 || (hostname.includes('localhost') && parts.length > 1) ? parts[0] : null
+
+  let tenantSlug: string | null = null
+
+  // Handle localhost
+  if (hostname.includes('localhost') && parts.length > 1) {
+    tenantSlug = parts[0]
+  }
+  // Handle pages.dev
+  else if (hostname.endsWith('.pages.dev')) {
+    // chirp-copilot.pages.dev -> parts.length === 3
+    // slug.chirp-copilot.pages.dev -> parts.length === 4
+    if (parts.length === 4) {
+      tenantSlug = parts[0]
+    }
+  }
+  // Handle custom domains (e.g. store.domain.com)
+  else if (parts.length > 2) {
+    tenantSlug = parts[0]
+  }
+
+  // Ensure we don't treat hashes or reserved names as slugs
+  if (tenantSlug && (RESERVED_SUBDOMAINS.includes(tenantSlug) || tenantSlug.match(/^[a-f0-9]{8}$/))) {
+    tenantSlug = null
+  }
 
   // 2. Inject tenant info into headers for downstream API usage
   const requestHeaders = new Headers(request.headers)
