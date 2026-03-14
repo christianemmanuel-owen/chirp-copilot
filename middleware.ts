@@ -9,20 +9,19 @@ import { getDb } from "@/lib/db"
 import { projects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
-// Initialize NextAuth with only the Edge-compatible config for the middleware
+// Use the Edge-safe auth wrapper
 const { auth } = NextAuth(authConfig)
 
 // Define admin subdomains or project root names that should not be treated as tenant slugs
 const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "chirp-mvp"]
 
 /**
- * Main Middleware Function
+ * Main Middleware Handler
+ * Using the authorized callback/wrapper pattern which is type-safe and
+ * provides the session directly as req.auth.
  */
-export async function middleware(request: NextRequest) {
-  // Use auth() as a function to get the session inside the middleware
-  // This is the Edge-safe version of auth
-  const session = await auth(request)
-
+export const middleware = auth(async (request: NextRequest & { auth: any }) => {
+  const session = request.auth
   const { pathname } = request.nextUrl
   const hostname = request.headers.get("host") || ""
   const { env } = await getCloudflareContext()
@@ -135,9 +134,9 @@ export async function middleware(request: NextRequest) {
       headers: requestHeaders,
     },
   })
-}
+})
 
-// Ensure both default and named exports exist
+// Export as default to satisfy OpenNext/Next.js requirement
 export default middleware;
 
 export const config = {
