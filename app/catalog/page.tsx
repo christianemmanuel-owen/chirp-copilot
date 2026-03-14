@@ -1,18 +1,24 @@
 export const dynamic = "force-dynamic"
 
 import { headers } from "next/headers"
-import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { redirect } from "next/navigation"
+import { getCloudflareContext } from "@/lib/cloudflare/context"
 import { getDb } from "@/lib/db"
-import { ensureTenantIdFromHeaders } from "@/lib/db/tenant"
+import { getTenantIdFromHeaders } from "@/lib/db/tenant"
 import Navigation from "@/components/navigation"
 import { getCatalogData } from "@/lib/storefront-data"
 import CatalogClient from "./catalog-client"
 
 export default async function CatalogPage() {
   const { env } = await getCloudflareContext()
-  const projectId = await ensureTenantIdFromHeaders(await headers(), env.DB)
-  const db = getDb(env.DB)
+  const headerList = await headers()
+  const projectId = await getTenantIdFromHeaders(headerList, env.DB)
 
+  if (!projectId) {
+    redirect("/")
+  }
+
+  const db = getDb(env.DB)
   const data = await getCatalogData(db, projectId)
 
   return (

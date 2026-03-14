@@ -1,8 +1,8 @@
 import { headers } from "next/headers"
-import { notFound } from "next/navigation"
-import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { notFound, redirect } from "next/navigation"
+import { getCloudflareContext } from "@/lib/cloudflare/context"
 import { getDb } from "@/lib/db"
-import { ensureTenantIdFromHeaders } from "@/lib/db/tenant"
+import { getTenantIdFromHeaders } from "@/lib/db/tenant"
 
 import Navigation from "@/components/navigation"
 import VariantDetailClient from "@/components/variant-detail-client"
@@ -22,7 +22,13 @@ export default async function VariantDetailPage({
   }
 
   const { env } = await getCloudflareContext()
-  const projectId = await ensureTenantIdFromHeaders(await headers(), env.DB)
+  const headerList = await headers()
+  const projectId = await getTenantIdFromHeaders(headerList, env.DB)
+
+  if (!projectId) {
+    redirect("/")
+  }
+
   const db = getDb(env.DB)
 
   const [catalogData, variantDetail] = await Promise.all([
