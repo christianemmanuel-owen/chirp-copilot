@@ -6,9 +6,25 @@ import { users, userProjects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import * as bcrypt from "bcrypt-ts"
 
-export const { handlers, auth, signIn, signOut } = NextAuth((req) => {
-    // In Cloudflare, we need to get the D1 binding from the request context
-    const d1 = (process.env as any).DB as D1Database
+export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
+    // In Cloudflare OpenNext, bindings might be in different places depending on the context
+    // We try multiple ways to get the D1 binding safely
+    let d1 = (process.env as any).DB as D1Database
+
+    if (!d1) {
+        try {
+            const { getCloudflareContext } = await import("@/lib/cloudflare/context")
+            const context = await getCloudflareContext()
+            d1 = context.env.DB
+        } catch (e) {
+            console.error("[auth] Failed to get safe cloudflare context", e)
+        }
+    }
+
+    if (!d1) {
+        console.warn("[auth] D1 database binding not found, Auth.js might fail")
+    }
+
     const db = getDb(d1)
 
     return {
