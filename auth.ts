@@ -14,6 +14,7 @@ import { authConfig } from "./auth.config"
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
     ...authConfig,
+    secret: process.env.AUTH_SECRET,
     adapter: DrizzleAdapter(getDb((process.env as any).DB)),
     providers: [
         ...authConfig.providers.filter(p => p.id !== "credentials"),

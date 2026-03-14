@@ -9,16 +9,17 @@ import { getDb } from "@/lib/db"
 import { projects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
-// Use the Edge-safe auth wrapper
-const { auth } = NextAuth(authConfig)
+// Initialize NextAuth with dynamic secret resolution for the Edge runtime
+const { auth } = NextAuth({
+  ...authConfig,
+  secret: process.env.AUTH_SECRET,
+})
 
 // Define admin subdomains or project root names that should not be treated as tenant slugs
 const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "chirp-mvp"]
 
 /**
  * Main Middleware Handler
- * Using the authorized callback/wrapper pattern which is type-safe and
- * provides the session directly as req.auth.
  */
 export const middleware = auth(async (request: NextRequest & { auth: any }) => {
   const session = request.auth
@@ -136,7 +137,6 @@ export const middleware = auth(async (request: NextRequest & { auth: any }) => {
   })
 })
 
-// Export as default to satisfy OpenNext/Next.js requirement
 export default middleware;
 
 export const config = {
