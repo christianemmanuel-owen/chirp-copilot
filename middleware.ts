@@ -6,7 +6,7 @@ import { auth } from "@/auth"
 // Define admin subdomains that should not be treated as tenant slugs
 const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth"]
 
-const middlewareHandler = auth((request: NextRequest & { auth: any }) => {
+export default auth((request: NextRequest & { auth: any }) => {
   const { pathname } = request.nextUrl
   const hostname = request.headers.get("host") || ""
   const session = request.auth
@@ -89,9 +89,6 @@ const middlewareHandler = auth((request: NextRequest & { auth: any }) => {
     },
   })
 })
-
-export const middleware = middlewareHandler
-export default middlewareHandler
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
