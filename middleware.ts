@@ -1,5 +1,3 @@
-import NextAuth from "next-auth"
-import { authConfig } from "./auth.config"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { evaluateRateLimit, getClientKey } from "@/lib/rate-limit"
@@ -8,6 +6,7 @@ import { checkFeature } from "@/lib/features"
 import { getDb } from "@/lib/db"
 import { projects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
+import { getAuth } from "@/auth"
 
 // Define admin subdomains or project root names that should not be treated as tenant slugs
 const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "chirp-mvp"]
@@ -21,7 +20,6 @@ export async function middleware(request: NextRequest) {
 
   // --- 1. ROBUST ASSET GUARD ---
   // Return immediately for any static file request. 
-  // Any path with a dot (except for tenant resolution) or starting with /_next is skipped.
   if (
     pathname.startsWith("/_next") ||
     pathname.includes("favicon.ico") ||
@@ -31,20 +29,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // --- 2. LAZY AUTH INITIALIZATION ---
+  // --- 2. CONTEXT & AUTH ---
   const { env } = await getCloudflareContext()
-
-  // Inject AUTH_SECRET into process.env if it's not already there (Edge polyfill)
-  if (env.AUTH_SECRET && !process.env.AUTH_SECRET) {
-    (process.env as any).AUTH_SECRET = env.AUTH_SECRET;
-  }
-
-  // Initialize NextAuth inside the request handler to ensure env variables are ready.
-  // We use the env.AUTH_SECRET directly in the config as a safeguard.
-  const { auth } = NextAuth({
-    ...authConfig,
-    secret: env.AUTH_SECRET || process.env.AUTH_SECRET || "placeholder-for-boot-only",
-  })
+  const { auth } = getAuth(env)
 
   // Wrap the logic in the auth handler
   return auth(async (req: any) => {

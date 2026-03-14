@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "build:pages": "opennextjs-cloudflare build && rm -rf dist && mkdir dist && cp -r .open-next/assets/* dist/ && cp .open-next/worker.js dist/_worker.js && cp -r .open-next/cloudflare .open-next/middleware .open-next/server-functions .open-next/.build dist/",
+    "build:pages": "opennextjs-cloudflare build && rm -rf dist && mkdir dist && cp -r .open-next/assets/* dist/ && cp .open-next/worker.js dist/_worker.js && cp -r .open-next/cloudflare .open-next/middleware .open-next/server-functions .open-next/.build dist/ && cp _routes.json dist/_routes.json",
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",

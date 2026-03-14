@@ -1,76 +1,84 @@
 import NextAuth from "next-auth"
 import { DrizzleAdapter } from "@auth/drizzle-adapter"
-import Credentials from "next-auth/providers/credentials"
 import { getDb } from "@/lib/db"
-import { users, userProjects } from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
-import * as bcrypt from "bcrypt-ts"
 import { authConfig } from "./auth.config"
+import Credentials from "next-auth/providers/credentials"
+import { eq } from "drizzle-orm"
+import { users } from "@/lib/db/schema"
+import { compare } from "bcrypt-ts"
 
 /**
- * Full Auth.js Configuration
- * This file is used by the main application (server actions, API routes).
- * It extends the Edge-compatible configuration with database-dependent logic.
+ * Lazy Auth Initializer
+ * This function creates a NextAuth instance using the provided environment.
+ * This is CRITICAL for Cloudflare Edge because it ensures environment variables
+ * are available at the time of initialization.
  */
-export const { handlers, auth, signIn, signOut } = NextAuth({
-    ...authConfig,
-    secret: process.env.AUTH_SECRET || "placeholder-secret-for-initialization",
-    adapter: DrizzleAdapter(getDb((process.env as any).DB)),
-    providers: [
-        ...authConfig.providers.filter(p => p.id !== "credentials"),
-        Credentials({
-            credentials: {
-                email: { label: "Email", type: "email" },
-                password: { label: "Password", type: "password" },
-            },
-            async authorize(credentials) {
-                if (!credentials?.email || !credentials?.password) return null
-
-                const d1 = (process.env as any).DB as D1Database
-                const db = getDb(d1)
-
-                const user = await db.query.users.findFirst({
-                    where: eq(users.email, credentials.email as string),
-                })
-
-                if (!user || !user.hashedPassword) return null
-
-                const isValid = await bcrypt.compare(
-                    credentials.password as string,
-                    user.hashedPassword
-                )
-
-                if (!isValid) return null
-
-                return {
-                    id: user.id,
-                    email: user.email,
-                    name: user.name,
-                }
-            },
-        }),
-    ],
-    callbacks: {
-        ...authConfig.callbacks,
-        async jwt({ token, user, trigger, session }) {
-            // Add custom projects logic which requires DB access
-            if (user) {
-                const d1 = (process.env as any).DB as D1Database
-                const db = getDb(d1)
-                const userWithProjects = await db.query.userProjects.findMany({
-                    where: eq(userProjects.userId, user.id as string),
-                    with: {
-                        project: true,
-                    },
-                })
-                token.projects = userWithProjects.map((up: any) => ({
-                    id: up.projectId,
-                    role: up.role,
-                    slug: up.project.slug,
-                    name: up.project.name,
-                }))
-            }
-            return token
-        },
+export function getAuth(env: any) {
+    if (!env) {
+        throw new Error("Cloudflare environment (env) is required to initialize Auth.js");
     }
-})
+
+    // Ensure the secret is available in process.env for providers that expect it there
+    if (env.AUTH_SECRET) {
+        (process.env as any).AUTH_SECRET = env.AUTH_SECRET;
+    }
+
+    return NextAuth({
+        ...authConfig,
+        secret: env.AUTH_SECRET || "placeholder-secret-for-boot",
+        adapter: DrizzleAdapter(getDb(env.DB)),
+        providers: [
+            ...authConfig.providers.filter(p => (p as any).id !== "credentials"),
+            Credentials({
+                async authorize(credentials) {
+                    if (!credentials?.email || !credentials?.password) return null;
+
+                    const db = getDb(env.DB);
+                    const user = await db.query.users.findFirst({
+                        where: eq(users.email, credentials.email as string),
+                    });
+
+                    if (!user || !user.hashedPassword) return null;
+
+                    const isPasswordValid = await compare(
+                        credentials.password as string,
+                        user.hashedPassword
+                    );
+
+                    if (!isPasswordValid) return null;
+
+                    // Fetch user's projects to include in the token
+                    const userProjects = await db.query.userProjects.findMany({
+                        where: eq(users.id, user.id),
+                        with: {
+                            project: true
+                        }
+                    });
+
+                    return {
+                        id: user.id,
+                        email: user.email,
+                        name: user.name,
+                        projects: userProjects.map(up => up.project)
+                    };
+                },
+            }),
+        ],
+        callbacks: {
+            ...authConfig.callbacks,
+            async jwt({ token, user }) {
+                if (user) {
+                    token.projects = (user as any).projects;
+                }
+                return token;
+            },
+            async session({ session, token }) {
+                if (session.user) {
+                    session.user.id = token.sub as string;
+                    (session.user as any).projects = token.projects;
+                }
+                return session;
+            },
+        }
+    });
+}
