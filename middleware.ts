@@ -1,12 +1,16 @@
+import NextAuth from "next-auth"
+import { authConfig } from "./auth.config"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { evaluateRateLimit, getClientKey } from "@/lib/rate-limit"
-import { auth } from "@/auth"
 import { getCloudflareContext } from "@/lib/cloudflare/context"
 import { checkFeature } from "@/lib/features"
 import { getDb } from "@/lib/db"
 import { projects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
+
+// Initialize NextAuth with only the Edge-compatible config for the middleware
+const { auth } = NextAuth(authConfig)
 
 // Define admin subdomains or project root names that should not be treated as tenant slugs
 const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "chirp-mvp"]
@@ -16,7 +20,7 @@ const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "ch
  */
 export async function middleware(request: NextRequest) {
   // Use auth() as a function to get the session inside the middleware
-  // This is often more reliable in Edge/OpenNext environments than the wrapper
+  // This is the Edge-safe version of auth
   const session = await auth(request)
 
   const { pathname } = request.nextUrl
@@ -133,7 +137,7 @@ export async function middleware(request: NextRequest) {
   })
 }
 
-// Ensure both default and named exports exist to satisfy different bundlers
+// Ensure both default and named exports exist
 export default middleware;
 
 export const config = {

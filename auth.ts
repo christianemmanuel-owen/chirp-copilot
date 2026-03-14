@@ -5,57 +5,18 @@ import { getDb } from "@/lib/db"
 import { users, userProjects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import * as bcrypt from "bcrypt-ts"
+import { authConfig } from "./auth.config"
 
 /**
- * Auth.js v5 Configuration
- * Standardizing on a flat configuration to ensure stable exports for OpenNext.
+ * Full Auth.js Configuration
+ * This file is used by the main application (server actions, API routes).
+ * It extends the Edge-compatible configuration with database-dependent logic.
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
-    adapter: {
-        // We use a custom adapter proxy to handle the dynamic D1 binding
-        // because the adapter is initialized before we have the request context.
-        async createUser(user) {
-            const d1 = (process.env as any).DB as D1Database
-            return DrizzleAdapter(getDb(d1)).createUser!(user)
-        },
-        async getUser(id) {
-            const d1 = (process.env as any).DB as D1Database
-            return DrizzleAdapter(getDb(d1)).getUser!(id)
-        },
-        async getUserByEmail(email) {
-            const d1 = (process.env as any).DB as D1Database
-            return DrizzleAdapter(getDb(d1)).getUserByEmail!(email)
-        },
-        async getUserByAccount({ providerAccountId, provider }) {
-            const d1 = (process.env as any).DB as D1Database
-            return DrizzleAdapter(getDb(d1)).getUserByAccount!({ providerAccountId, provider })
-        },
-        async updateUser(user) {
-            const d1 = (process.env as any).DB as D1Database
-            return DrizzleAdapter(getDb(d1)).updateUser!(user)
-        },
-        async linkAccount(account) {
-            const d1 = (process.env as any).DB as D1Database
-            return DrizzleAdapter(getDb(d1)).linkAccount!(account)
-        },
-        async createSession(session) {
-            const d1 = (process.env as any).DB as D1Database
-            return DrizzleAdapter(getDb(d1)).createSession!(session)
-        },
-        async getSessionAndUser(sessionToken) {
-            const d1 = (process.env as any).DB as D1Database
-            return DrizzleAdapter(getDb(d1)).getSessionAndUser!(sessionToken)
-        },
-        async updateSession(session) {
-            const d1 = (process.env as any).DB as D1Database
-            return DrizzleAdapter(getDb(d1)).updateSession!(session)
-        },
-        async deleteSession(sessionToken) {
-            const d1 = (process.env as any).DB as D1Database
-            return DrizzleAdapter(getDb(d1)).deleteSession!(sessionToken)
-        },
-    },
+    ...authConfig,
+    adapter: DrizzleAdapter(getDb((process.env as any).DB)),
     providers: [
+        ...authConfig.providers.filter(p => p.id !== "credentials"),
         Credentials({
             credentials: {
                 email: { label: "Email", type: "email" },
@@ -88,9 +49,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             },
         }),
     ],
-    session: { strategy: "jwt" },
     callbacks: {
-        async jwt({ token, user }) {
+        ...authConfig.callbacks,
+        async jwt({ token, user, trigger, session }) {
+            // Add custom projects logic which requires DB access
             if (user) {
                 const d1 = (process.env as any).DB as D1Database
                 const db = getDb(d1)
@@ -109,13 +71,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             }
             return token
         },
-        async session({ session, token }) {
-            if (token.sub && session.user) {
-                session.user.id = token.sub;
-                (session.user as any).projects = token.projects
-            }
-            return session
-        },
-    },
-    secret: process.env.AUTH_SECRET,
+    }
 })
