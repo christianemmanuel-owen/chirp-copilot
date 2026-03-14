@@ -9,23 +9,6 @@ import { getDb } from "@/lib/db"
 import { projects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
-// Lazy Auth Initialization
-let cachedAuth: any = null;
-
-function getAuth(secret: string | undefined) {
-  if (!cachedAuth) {
-    // If secret is missing during initialization (e.g. build time), 
-    // we use a placeholder to prevent top-level crashes.
-    // However, in production request time it should be present.
-    const finalSecret = secret || "placeholder-secret-for-initialization-only";
-    cachedAuth = NextAuth({
-      ...authConfig,
-      secret: finalSecret,
-    }).auth;
-  }
-  return cachedAuth;
-}
-
 // Define admin subdomains or project root names that should not be treated as tenant slugs
 const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "chirp-mvp"]
 
@@ -36,24 +19,36 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const hostname = request.headers.get("host") || ""
 
-  // --- 1. ASSET GUARD: Skip static assets and files with extensions ---
-  // This is CRITICAL to ensure the worker doesn't intercept or crash on CSS/JS/Images
+  // --- 1. ROBUST ASSET GUARD ---
+  // Return immediately for any static file request. 
+  // Any path with a dot (except for tenant resolution) or starting with /_next is skipped.
   if (
     pathname.startsWith("/_next") ||
     pathname.includes("favicon.ico") ||
-    pathname.includes(".") // Catch .css, .js, .png, etc.
+    pathname.includes("robots.txt") ||
+    (pathname.includes(".") && !pathname.startsWith("/api"))
   ) {
     return NextResponse.next();
   }
 
-  // --- 2. Lazy Auth Resolution ---
-  const secret = process.env.AUTH_SECRET;
-  const auth = getAuth(secret);
+  // --- 2. LAZY AUTH INITIALIZATION ---
+  const { env } = await getCloudflareContext()
+
+  // Inject AUTH_SECRET into process.env if it's not already there (Edge polyfill)
+  if (env.AUTH_SECRET && !process.env.AUTH_SECRET) {
+    (process.env as any).AUTH_SECRET = env.AUTH_SECRET;
+  }
+
+  // Initialize NextAuth inside the request handler to ensure env variables are ready.
+  // We use the env.AUTH_SECRET directly in the config as a safeguard.
+  const { auth } = NextAuth({
+    ...authConfig,
+    secret: env.AUTH_SECRET || process.env.AUTH_SECRET || "placeholder-for-boot-only",
+  })
 
   // Wrap the logic in the auth handler
   return auth(async (req: any) => {
     const session = req.auth
-    const { env } = await getCloudflareContext()
 
     // A. Resolve tenant from subdomain
     const parts = hostname.split('.')
