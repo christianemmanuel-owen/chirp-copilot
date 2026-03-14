@@ -6,7 +6,7 @@ pages_build_output_dir = ".open-next/assets"
 [[d1_databases]]
 binding = "DB"
 database_name = "chirp-db"
-database_id = "03aad26f80fb045bd44e16e52e1e0524"
+database_id = "e7d8226b-a4e0-4b52-96b8-279008714213"
 migrations_dir = "drizzle"
 
 [[r2_buckets]]
