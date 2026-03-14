@@ -9,11 +9,22 @@ import { getDb } from "@/lib/db"
 import { projects } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
-// Initialize NextAuth with dynamic secret resolution for the Edge runtime
-const { auth } = NextAuth({
-  ...authConfig,
-  secret: process.env.AUTH_SECRET,
-})
+// Lazy Auth Initialization
+let cachedAuth: any = null;
+
+function getAuth(secret: string | undefined) {
+  if (!cachedAuth) {
+    // If secret is missing during initialization (e.g. build time), 
+    // we use a placeholder to prevent top-level crashes.
+    // However, in production request time it should be present.
+    const finalSecret = secret || "placeholder-secret-for-initialization-only";
+    cachedAuth = NextAuth({
+      ...authConfig,
+      secret: finalSecret,
+    }).auth;
+  }
+  return cachedAuth;
+}
 
 // Define admin subdomains or project root names that should not be treated as tenant slugs
 const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "chirp-mvp"]
@@ -21,123 +32,131 @@ const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "ch
 /**
  * Main Middleware Handler
  */
-export const middleware = auth(async (request: NextRequest & { auth: any }) => {
-  const session = request.auth
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const hostname = request.headers.get("host") || ""
-  const { env } = await getCloudflareContext()
 
-  // 1. Resolve tenant from subdomain
-  const parts = hostname.split('.')
-
-  let tenantSlug: string | null = null
-
-  // Handle localhost
-  if (hostname.includes('localhost') && parts.length > 1) {
-    tenantSlug = parts[0]
+  // --- 1. ASSET GUARD: Skip static assets and files with extensions ---
+  // This is CRITICAL to ensure the worker doesn't intercept or crash on CSS/JS/Images
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.includes("favicon.ico") ||
+    pathname.includes(".") // Catch .css, .js, .png, etc.
+  ) {
+    return NextResponse.next();
   }
-  // Handle pages.dev
-  else if (hostname.endsWith('.pages.dev')) {
-    if (parts.length === 4) {
+
+  // --- 2. Lazy Auth Resolution ---
+  const secret = process.env.AUTH_SECRET;
+  const auth = getAuth(secret);
+
+  // Wrap the logic in the auth handler
+  return auth(async (req: any) => {
+    const session = req.auth
+    const { env } = await getCloudflareContext()
+
+    // A. Resolve tenant from subdomain
+    const parts = hostname.split('.')
+    let tenantSlug: string | null = null
+
+    if (hostname.includes('localhost') && parts.length > 1) {
+      tenantSlug = parts[0]
+    } else if (hostname.endsWith('.pages.dev')) {
+      if (parts.length === 4) {
+        tenantSlug = parts[0]
+      }
+    } else if (parts.length > 2) {
       tenantSlug = parts[0]
     }
-  }
-  // Handle custom domains
-  else if (parts.length > 2) {
-    tenantSlug = parts[0]
-  }
 
-  // Ensure we don't treat hashes or reserved names as slugs
-  if (tenantSlug && (RESERVED_SUBDOMAINS.includes(tenantSlug) || tenantSlug.match(/^[a-f0-9]{8}$/))) {
-    tenantSlug = null
-  }
-
-  // 2. Inject tenant info into headers
-  const requestHeaders = new Headers(request.headers)
-  if (tenantSlug) {
-    requestHeaders.set("x-tenant-slug", tenantSlug)
-  }
-
-  // 3. Auth Redirection
-  const isLoginPage = pathname === "/login" || pathname === "/signup"
-  if (isLoginPage && session) {
-    const userProjects = (session.user as any)?.projects || []
-    if (userProjects.length > 0) {
-      const firstProjectSlug = userProjects[0].slug
-      const targetHost = hostname.replace(tenantSlug || "www", firstProjectSlug)
-      return NextResponse.redirect(new URL("/admin", `https://${targetHost}`))
+    if (tenantSlug && (RESERVED_SUBDOMAINS.includes(tenantSlug) || tenantSlug.match(/^[a-f0-9]{8}$/))) {
+      tenantSlug = null
     }
-    return NextResponse.redirect(new URL("/admin", request.url))
-  }
 
-  // 4. Auth Protection
-  const isAdminPage = pathname.startsWith("/admin")
-  const isApiRoute = pathname.startsWith("/api/")
+    const requestHeaders = new Headers(request.headers)
+    if (tenantSlug) {
+      requestHeaders.set("x-tenant-slug", tenantSlug)
+    }
 
-  if (isAdminPage && !session) {
-    const loginUrl = new URL("/login", request.url)
-    const redirectTarget = `${pathname}${request.nextUrl.search}`
-    loginUrl.searchParams.set("redirectTo", redirectTarget)
-    return NextResponse.redirect(loginUrl)
-  }
+    // B. Auth Redirection
+    const isLoginPage = pathname === "/login" || pathname === "/signup"
+    if (isLoginPage && session) {
+      const userProjects = (session.user as any)?.projects || []
+      if (userProjects.length > 0) {
+        const firstProjectSlug = userProjects[0].slug
+        const targetHost = hostname.replace(tenantSlug || "www", firstProjectSlug)
+        return NextResponse.redirect(new URL("/admin", `https://${targetHost}`))
+      }
+      return NextResponse.redirect(new URL("/admin", request.url))
+    }
 
-  if (isApiRoute && pathname.startsWith("/api/admin") && !session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+    // C. Auth Protection
+    const isAdminPage = pathname.startsWith("/admin")
+    const isApiRoute = pathname.startsWith("/api/")
 
-  // 5. Feature Entitlement & Maintenance Checks
-  if (tenantSlug) {
-    const isOmnichannelRoute = pathname.startsWith("/admin/messages") || pathname.startsWith("/api/admin/instagram")
+    if (isAdminPage && !session) {
+      const loginUrl = new URL("/login", request.url)
+      const redirectTarget = `${pathname}${request.nextUrl.search}`
+      loginUrl.searchParams.set("redirectTo", redirectTarget)
+      return NextResponse.redirect(loginUrl)
+    }
 
-    if (isOmnichannelRoute) {
-      const db = getDb(env.DB)
-      const project = await db.query.projects.findFirst({
-        where: eq(projects.slug, tenantSlug)
-      })
+    if (isApiRoute && pathname.startsWith("/api/admin") && !session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-      if (project) {
-        const status = await checkFeature(env.DB, project.id, "omnichannel")
-        if (!status.isEnabled) {
-          if (isApiRoute) {
-            return NextResponse.json({
-              error: "Feature Disabled",
-              reason: status.reason,
-              message: status.message
-            }, { status: 403 })
+    // D. Feature Entitlement & Maintenance Checks
+    if (tenantSlug) {
+      const isOmnichannelRoute = pathname.startsWith("/admin/messages") || pathname.startsWith("/api/admin/instagram")
+
+      if (isOmnichannelRoute) {
+        const db = getDb(env.DB)
+        const project = await db.query.projects.findFirst({
+          where: eq(projects.slug, tenantSlug)
+        })
+
+        if (project) {
+          const status = await checkFeature(env.DB, project.id, "omnichannel")
+          if (!status.isEnabled) {
+            if (isApiRoute) {
+              return NextResponse.json({
+                error: "Feature Disabled",
+                reason: status.reason,
+                message: status.message
+              }, { status: 403 })
+            }
+            return new NextResponse(status.message, { status: 403 })
           }
-          return new NextResponse(status.message, { status: 403 })
         }
       }
     }
-  }
 
-  // 6. Rate Limiting for API
-  if (isApiRoute) {
-    const clientKey = getClientKey((request as any).ip, request.headers.get("x-forwarded-for"))
-    const { allowed, resetAt } = evaluateRateLimit(clientKey)
+    // E. Rate Limiting for API
+    if (isApiRoute) {
+      const clientKey = getClientKey((request as any).ip, request.headers.get("x-forwarded-for"))
+      const { allowed, resetAt } = evaluateRateLimit(clientKey)
 
-    if (!allowed) {
-      const retryAfterSeconds = Math.max(1, Math.ceil((resetAt - Date.now()) / 1000))
-      const response = NextResponse.json(
-        {
-          error: "Too many requests",
-          message: "You have sent too many requests. Please try again later.",
-        },
-        { status: 429 },
-      )
-      response.headers.set("Retry-After", retryAfterSeconds.toString())
-      return response
+      if (!allowed) {
+        const retryAfterSeconds = Math.max(1, Math.ceil((resetAt - Date.now()) / 1000))
+        const response = NextResponse.json(
+          {
+            error: "Too many requests",
+            message: "You have sent too many requests. Please try again later.",
+          },
+          { status: 429 },
+        )
+        response.headers.set("Retry-After", retryAfterSeconds.toString())
+        return response
+      }
     }
-  }
 
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  })
-})
-
-export default middleware;
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
+  })(request, {} as any)
+}
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
