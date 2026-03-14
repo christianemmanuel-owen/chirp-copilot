@@ -12,13 +12,15 @@ import { eq } from "drizzle-orm"
 const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "chirp-mvp"]
 
 /**
- * Main Middleware Handler
- * Using the standard 'export default auth(...)' pattern for Auth.js v5 + OpenNext.
+ * Main Middleware Function
  */
-export default auth(async (request: NextRequest & { auth: any }) => {
+export async function middleware(request: NextRequest) {
+  // Use auth() as a function to get the session inside the middleware
+  // This is often more reliable in Edge/OpenNext environments than the wrapper
+  const session = await auth(request)
+
   const { pathname } = request.nextUrl
   const hostname = request.headers.get("host") || ""
-  const session = request.auth
   const { env } = await getCloudflareContext()
 
   // 1. Resolve tenant from subdomain
@@ -32,13 +34,11 @@ export default auth(async (request: NextRequest & { auth: any }) => {
   }
   // Handle pages.dev
   else if (hostname.endsWith('.pages.dev')) {
-    // chirp-copilot.pages.dev -> parts.length === 3
-    // slug.chirp-copilot.pages.dev -> parts.length === 4
     if (parts.length === 4) {
       tenantSlug = parts[0]
     }
   }
-  // Handle custom domains (e.g. store.domain.com)
+  // Handle custom domains
   else if (parts.length > 2) {
     tenantSlug = parts[0]
   }
@@ -48,13 +48,13 @@ export default auth(async (request: NextRequest & { auth: any }) => {
     tenantSlug = null
   }
 
-  // 2. Inject tenant info into headers for downstream API usage
+  // 2. Inject tenant info into headers
   const requestHeaders = new Headers(request.headers)
-  if (tenantSlug && !RESERVED_SUBDOMAINS.includes(tenantSlug)) {
+  if (tenantSlug) {
     requestHeaders.set("x-tenant-slug", tenantSlug)
   }
 
-  // 3. Auth Redirection: Redirect authenticated users away from login/signup to their project
+  // 3. Auth Redirection
   const isLoginPage = pathname === "/login" || pathname === "/signup"
   if (isLoginPage && session) {
     const userProjects = (session.user as any)?.projects || []
@@ -66,7 +66,7 @@ export default auth(async (request: NextRequest & { auth: any }) => {
     return NextResponse.redirect(new URL("/admin", request.url))
   }
 
-  // 4. Auth Protection: Protect Admin Pages and API Routes
+  // 4. Auth Protection
   const isAdminPage = pathname.startsWith("/admin")
   const isApiRoute = pathname.startsWith("/api/")
 
@@ -82,8 +82,7 @@ export default auth(async (request: NextRequest & { auth: any }) => {
   }
 
   // 5. Feature Entitlement & Maintenance Checks
-  if (tenantSlug && !RESERVED_SUBDOMAINS.includes(tenantSlug)) {
-    // If we're on a tenant subdomain, check for restricted features
+  if (tenantSlug) {
     const isOmnichannelRoute = pathname.startsWith("/admin/messages") || pathname.startsWith("/api/admin/instagram")
 
     if (isOmnichannelRoute) {
@@ -95,7 +94,6 @@ export default auth(async (request: NextRequest & { auth: any }) => {
       if (project) {
         const status = await checkFeature(env.DB, project.id, "omnichannel")
         if (!status.isEnabled) {
-          // If it's an API route, return JSON. Otherwise, redirect or show message.
           if (isApiRoute) {
             return NextResponse.json({
               error: "Feature Disabled",
@@ -103,9 +101,6 @@ export default auth(async (request: NextRequest & { auth: any }) => {
               message: status.message
             }, { status: 403 })
           }
-
-          // For pages, we can redirect to a "Feature Required" page or just show an error
-          // For now, let's just return a simple forbidden response with the reason
           return new NextResponse(status.message, { status: 403 })
         }
       }
@@ -136,7 +131,10 @@ export default auth(async (request: NextRequest & { auth: any }) => {
       headers: requestHeaders,
     },
   })
-})
+}
+
+// Ensure both default and named exports exist to satisfy different bundlers
+export default middleware;
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
