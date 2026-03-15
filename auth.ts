@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db"
 import { authConfig } from "./auth.config"
 import Credentials from "next-auth/providers/credentials"
 import { eq } from "drizzle-orm"
-import { users } from "@/lib/db/schema"
+import { users, projects, userProjects } from "@/lib/db/schema"
 import { compare } from "bcrypt-ts"
 
 /**
@@ -82,18 +82,21 @@ export function getAuth(env: any, hostname?: string) {
                         console.log("[Auth] Login successful!");
 
                         // Fetch user's projects to include in the token
-                        const userProjects = await db.query.userProjects.findMany({
-                            where: eq(users.id, user.id),
-                            with: {
-                                project: true
-                            }
-                        });
+                        // Standardize to select join to avoid Drizzle relational query issues in Edge runtime
+                        const userProjectsResult = await db.select({
+                            id: projects.id,
+                            name: projects.name,
+                            slug: projects.slug,
+                        })
+                            .from(userProjects)
+                            .innerJoin(projects, eq(userProjects.projectId, projects.id))
+                            .where(eq(userProjects.userId, user.id));
 
                         return {
                             id: user.id,
                             email: user.email,
                             name: user.name,
-                            projects: userProjects.map(up => up.project)
+                            projects: userProjectsResult
                         };
                     } catch (error) {
                         console.error("[Auth] Authorize Error:", error);
