@@ -38,7 +38,7 @@ export default async function StorefrontHome({ searchParams }: StorefrontHomePro
 
   const { env } = await getCloudflareContext()
   const headerList = await headers()
-  const projectId = await getTenantIdFromHeaders(headerList, env.DB)
+  const projectId = env.DB ? await getTenantIdFromHeaders(headerList, env.DB) : null
 
   // --- Fallback Landing Page ---
   if (!projectId) {

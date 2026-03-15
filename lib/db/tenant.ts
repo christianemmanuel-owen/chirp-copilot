@@ -5,14 +5,19 @@ import { projects } from "./schema";
 
 export async function getTenantId(request: Request, d1: D1Database): Promise<string | null> {
     const slug = request.headers.get("x-tenant-slug");
-    if (!slug) return null;
+    if (!slug || !d1) return null;
 
-    const db = getDb(d1);
-    const project = await db.query.projects.findFirst({
-        where: eq(projects.slug, slug),
-    });
+    try {
+        const db = getDb(d1);
+        const project = await db.query.projects.findFirst({
+            where: eq(projects.slug, slug),
+        });
 
-    return project?.id ?? null;
+        return project?.id ?? null;
+    } catch (error) {
+        console.error("[tenant] Failed to fetch tenant from request", error);
+        return null;
+    }
 }
 
 /**
@@ -29,14 +34,19 @@ export async function ensureTenantId(request: Request, d1: D1Database): Promise<
 
 export async function getTenantIdFromHeaders(headers: Headers, d1: D1Database): Promise<string | null> {
     const slug = headers.get("x-tenant-slug");
-    if (!slug) return null;
+    if (!slug || !d1) return null;
 
-    const db = getDb(d1);
-    const project = await db.query.projects.findFirst({
-        where: eq(projects.slug, slug),
-    });
+    try {
+        const db = getDb(d1);
+        const project = await db.query.projects.findFirst({
+            where: eq(projects.slug, slug),
+        });
 
-    return project?.id ?? null;
+        return project?.id ?? null;
+    } catch (error) {
+        console.error("[tenant] Failed to fetch tenant from headers", error);
+        return null;
+    }
 }
 
 export async function ensureTenantIdFromHeaders(headers: Headers, d1: D1Database): Promise<string> {
