@@ -1,6 +1,3 @@
-export const runtime = "edge"
-export const dynamic = "force-dynamic"
-
 import { NextRequest } from "next/server"
 
 import { getCloudflareContext } from "@/lib/cloudflare/context"
