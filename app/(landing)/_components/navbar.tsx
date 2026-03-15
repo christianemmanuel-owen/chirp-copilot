@@ -37,7 +37,7 @@ export function Navbar() {
       <div className={`transition-all duration-300 ${shellClasses} pointer-events-auto`}>
         <div className="flex items-center justify-between gap-6">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/CHIRP Logo.png" alt="Chirp logo" className="h-7 sm:h-8 w-auto" />
+            <img src="/CHIRP-Logo.png" alt="Chirp logo" className="h-7 sm:h-8 w-auto" />
           </Link>
           <div className="md:hidden flex items-center gap-3 ml-auto">
             {links.map((link) => (

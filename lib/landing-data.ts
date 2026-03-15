@@ -1,15 +1,3 @@
-import type { LucideIcon } from "lucide-react"
-import {
-  ShoppingBag,
-  Package,
-  MessageSquare,
-  CreditCard,
-  Rocket,
-  Users,
-  Zap,
-  TrendingUp,
-} from "lucide-react"
-
 export type BillingCycle = "monthly" | "annually"
 
 export type RoadmapStep = {
@@ -17,7 +5,7 @@ export type RoadmapStep = {
   title: string
   subtitle: string
   description: string
-  icon: LucideIcon
+  icon: string
   features: string[]
   color: string
 }
@@ -25,7 +13,7 @@ export type RoadmapStep = {
 export type Stat = {
   value: string
   label: string
-  icon: LucideIcon
+  icon: string
 }
 
 export type Brand = {
@@ -55,7 +43,7 @@ export const roadmapSteps: RoadmapStep[] = [
     subtitle: "Stay organized",
     description:
       "Track inventory in real time, get low-stock alerts, and update products in seconds so you never miss a sale.",
-    icon: Package,
+    icon: "package",
     features: ["Real-time stock tracking", "Low stock alerts", "Bulk import/export"],
     color: "from-indigo-500 to-indigo-600",
   },
@@ -65,7 +53,7 @@ export const roadmapSteps: RoadmapStep[] = [
     subtitle: "Launch in minutes",
     description:
       "Simply turn your inventory into your branded storefront with little to no setup required.",
-    icon: ShoppingBag,
+    icon: "shopping-bag",
     features: ["Plug & Play", "Custom domain"],
     color: "from-blue-500 to-blue-600",
   },
@@ -75,7 +63,7 @@ export const roadmapSteps: RoadmapStep[] = [
     subtitle: "Get paid easily",
     description:
       "Accept payments your way via personal QR codes or bank details. Simple. Convenient. No Platform Fees.",
-    icon: CreditCard,
+    icon: "credit-card",
     features: ["Use your own QR codes or bank details", "Your customers pay you directly", "Zero transaction fees"],
     color: "from-purple-500 to-purple-600",
   },
@@ -85,7 +73,7 @@ export const roadmapSteps: RoadmapStep[] = [
     subtitle: "Build relationships",
     description:
       "Manage all your customer conversations in one Omnichannel inbox. Turn DMs into sales with our AI-powered response suggestions.",
-    icon: MessageSquare,
+    icon: "message-square",
     features: ["Omnichannel inbox", "Customer profiles and tagging", "Built-in toolbar for quick checkout links, receipts, and more"],
     color: "from-violet-500 to-violet-600",
   },
@@ -95,16 +83,16 @@ export const roadmapSteps: RoadmapStep[] = [
     subtitle: "Unlock your potential",
     description:
       "Use powerful analytics to understand your business. Get AI-powered insights and recommendations to accelerate your growth.",
-    icon: Rocket,
+    icon: "rocket",
     features: ["Advanced analytics", "Performance reports", "Export as CSV/XLSX"],
     color: "from-primary to-blue-600",
   },
 ]
 
 export const stats: Stat[] = [
-  { value: "10K+", label: "Active Sellers", icon: Users },
-  { value: "98%", label: "Uptime", icon: Zap },
-  { value: "3x", label: "Revenue Growth", icon: TrendingUp },
+  { value: "10K+", label: "Active Sellers", icon: "users" },
+  { value: "98%", label: "Uptime", icon: "zap" },
+  { value: "3x", label: "Revenue Growth", icon: "trending-up" },
 ]
 
 export const brands: Brand[] = [

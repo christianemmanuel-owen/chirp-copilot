@@ -1,11 +1,36 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ArrowRight, BarChart3, Check, LineChart, Settings } from "lucide-react"
+import {
+  ArrowRight,
+  BarChart3,
+  Check,
+  LineChart,
+  Settings,
+  Package,
+  ShoppingBag,
+  CreditCard,
+  MessageSquare,
+  Rocket,
+  Users,
+  Zap,
+  TrendingUp,
+} from "lucide-react"
 
 import { Button } from "@/app/(landing)/_ui/button"
 import { Card } from "@/app/(landing)/_ui/card"
 import type { RoadmapStep } from "@/lib/landing-data"
+
+const ICON_MAP: Record<string, any> = {
+  package: Package,
+  "shopping-bag": ShoppingBag,
+  "credit-card": CreditCard,
+  "message-square": MessageSquare,
+  rocket: Rocket,
+  users: Users,
+  zap: Zap,
+  "trending-up": TrendingUp,
+}
 
 type FeaturesSectionProps = {
   roadmapSteps: RoadmapStep[]
@@ -56,11 +81,10 @@ function renderStepVisual(index: number) {
         {[...Array(4)].map((_, i) => (
           <div key={i} className={`flex gap-3 ${i % 2 === 0 ? "justify-start" : "justify-end"}`}>
             <div
-              className={`max-w-[70%] p-3 rounded-2xl ${
-                i % 2 === 0
-                  ? "bg-background/80 rounded-tl-none"
-                  : "bg-gradient-to-r from-violet-500 to-violet-600 text-white rounded-tr-none"
-              }`}
+              className={`max-w-[70%] p-3 rounded-2xl ${i % 2 === 0
+                ? "bg-background/80 rounded-tl-none"
+                : "bg-gradient-to-r from-violet-500 to-violet-600 text-white rounded-tr-none"
+                }`}
             >
               <div className={`h-2 w-24 rounded ${i % 2 === 0 ? "bg-border" : "bg-white/30"}`} />
               <div className={`h-2 w-16 rounded mt-1 ${i % 2 === 0 ? "bg-border/50" : "bg-white/20"}`} />
@@ -165,9 +189,8 @@ export function FeaturesSection({ roadmapSteps }: FeaturesSectionProps) {
             <div
               key={item.step + item.title}
               data-step={index}
-              className={`relative mb-16 sm:mb-24 last:mb-0 transition-all duration-700 ${
-                activeStep >= index ? "opacity-100" : "opacity-40"
-              }`}
+              className={`relative mb-16 sm:mb-24 last:mb-0 transition-all duration-700 ${activeStep >= index ? "opacity-100" : "opacity-40"
+                }`}
             >
               <div className={`grid lg:grid-cols-2 gap-8 sm:gap-12 items-center ${index % 2 === 1 ? "lg:flex-row-reverse" : ""}`}>
                 <div className={`${index % 2 === 1 ? "lg:order-2" : ""}`}>
@@ -175,7 +198,10 @@ export function FeaturesSection({ roadmapSteps }: FeaturesSectionProps) {
                     <div
                       className={`relative flex shrink-0 aspect-square items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br ${item.color} shadow-lg`}
                     >
-                      <item.icon className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
+                      {(() => {
+                        const Icon = ICON_MAP[item.icon as string] || Package
+                        return <Icon className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
+                      })()}
                       {activeStep === index && (
                         <div
                           className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${item.color} animate-ping opacity-30`}
@@ -243,11 +269,10 @@ export function FeaturesSection({ roadmapSteps }: FeaturesSectionProps) {
               {index < roadmapSteps.length - 1 && (
                 <div className="hidden lg:flex justify-center my-12">
                   <div
-                    className={`w-px h-16 transition-all duration-500 ${
-                      activeStep > index
-                        ? "bg-gradient-to-b from-primary to-primary/50"
-                        : "bg-gradient-to-b from-border to-border/50"
-                    }`}
+                    className={`w-px h-16 transition-all duration-500 ${activeStep > index
+                      ? "bg-gradient-to-b from-primary to-primary/50"
+                      : "bg-gradient-to-b from-border to-border/50"
+                      }`}
                   />
                 </div>
               )}

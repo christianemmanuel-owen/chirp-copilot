@@ -31,7 +31,7 @@ export function SiteFooter() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-8 mb-10 sm:mb-12">
           <div className="md:col-span-2">
             <a href="#" className="mb-4 block">
-              <img src="/CHIRP Logo.png" alt="Chirp logo" className="h-12 sm:h-14 w-auto" />
+              <img src="/CHIRP-Logo.png" alt="Chirp logo" className="h-12 sm:h-14 w-auto" />
             </a>
             <p className="text-sm text-muted-foreground max-w-xs mb-6">
               The Easiest Way to Run Your DM-First Business.
