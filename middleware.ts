@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm"
 import { getAuth } from "@/auth"
 
 // Define admin subdomains or project root names that should not be treated as tenant slugs
-const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "chirp-copilot", "chirp-mvp"]
+const RESERVED_SUBDOMAINS = ["www", "admin", "api", "auth", "my", "chirp-copilot", "chirp-mvp"]
 
 /**
  * Main Middleware Handler
@@ -31,24 +31,42 @@ export async function middleware(request: NextRequest) {
 
   // --- 2. CONTEXT & AUTH ---
   const { env } = await getCloudflareContext()
-  const { auth } = getAuth(env)
+  const { auth } = getAuth(env, hostname)
 
   // Wrap the logic in the auth handler
   return auth(async (req: any) => {
     const session = req.auth
 
-    // A. Resolve tenant from subdomain
+    // A. Resolve tenant from hostname or pathname
     const parts = hostname.split('.')
     let tenantSlug: string | null = null
 
-    if (hostname.includes('localhost') && parts.length > 1) {
+    // 1. Handle "my.chirpcopilot.com/[tenant]" (Admin)
+    if (hostname === "my.chirpcopilot.com" || hostname.startsWith("my.localhost")) {
+      const pathParts = pathname.split('/')
+      if (pathParts[1] && !RESERVED_SUBDOMAINS.includes(pathParts[1])) {
+        tenantSlug = pathParts[1]
+      }
+    }
+    // 2. Handle "[tenant].chirpcopilot.com" (Storefront)
+    else if (hostname.includes('localhost') && parts.length > 1) {
       tenantSlug = parts[0]
     } else if (hostname.endsWith('.pages.dev')) {
       if (parts.length === 4) {
         tenantSlug = parts[0]
       }
     } else if (parts.length > 2) {
-      tenantSlug = parts[0]
+      // Standard custom subdomain: [tenant].chirpcopilot.com
+      const sub = parts[0]
+      if (!RESERVED_SUBDOMAINS.includes(sub)) {
+        tenantSlug = sub
+      }
+    }
+
+    // --- NEW: Query Param Fallback for testing ---
+    const qTenant = request.nextUrl.searchParams.get("tenant") || request.nextUrl.searchParams.get("store")
+    if (qTenant) {
+      tenantSlug = qTenant
     }
 
     if (tenantSlug && (RESERVED_SUBDOMAINS.includes(tenantSlug) || tenantSlug.match(/^[a-f0-9]{8}$/))) {
@@ -58,6 +76,18 @@ export async function middleware(request: NextRequest) {
     const requestHeaders = new Headers(request.headers)
     if (tenantSlug) {
       requestHeaders.set("x-tenant-slug", tenantSlug)
+    }
+
+    // --- NEW: Path Rewrite for Admin (my.domain.com/tenant/admin -> /admin) ---
+    if (hostname.startsWith("my.") && tenantSlug && pathname.startsWith(`/${tenantSlug}`)) {
+      const newPath = pathname.replace(`/${tenantSlug}`, "") || "/"
+      const url = request.nextUrl.clone()
+      url.pathname = newPath
+      return NextResponse.rewrite(url, {
+        request: {
+          headers: requestHeaders
+        }
+      })
     }
 
     // B. Auth Redirection

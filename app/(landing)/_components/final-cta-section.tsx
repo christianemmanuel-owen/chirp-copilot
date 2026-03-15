@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { X, ChevronDown } from "lucide-react"
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, motion } from "framer-motion"
 
 import { Button } from "@/app/(landing)/_ui/button"
 

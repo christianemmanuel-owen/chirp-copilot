@@ -13,7 +13,7 @@ import { compare } from "bcrypt-ts"
  * This is CRITICAL for Cloudflare Edge because it ensures environment variables
  * are available at the time of initialization.
  */
-export function getAuth(env: any) {
+export function getAuth(env: any, hostname?: string) {
     if (!env) {
         throw new Error("Cloudflare environment (env) is required to initialize Auth.js");
     }
@@ -23,8 +23,22 @@ export function getAuth(env: any) {
         (process.env as any).AUTH_SECRET = env.AUTH_SECRET;
     }
 
+    const cookieDomain = hostname?.endsWith('.chirpcopilot.com') ? '.chirpcopilot.com' : undefined;
+
     return NextAuth({
         ...authConfig,
+        cookies: {
+            sessionToken: {
+                name: `authjs.session-token`,
+                options: {
+                    httpOnly: true,
+                    sameSite: "lax",
+                    path: "/",
+                    domain: cookieDomain,
+                    secure: true,
+                },
+            },
+        },
         secret: env.AUTH_SECRET || "placeholder-secret-for-boot",
         adapter: DrizzleAdapter(getDb(env.DB)),
         providers: [

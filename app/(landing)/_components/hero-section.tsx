@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, ShoppingBag, Heart, Send, Bell, Box, CreditCard, Bot, Check, ChevronDown } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/app/(landing)/_ui/button";
 
 const waitlistBgBlue =

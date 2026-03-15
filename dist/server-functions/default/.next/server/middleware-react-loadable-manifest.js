@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST='{"app/admin/_components/DashboardClient.tsx -> xlsx":{"id":4246,"files":["static/chunks/2170a4aa.756477beae5de47f.js","static/chunks/8436.cab94b59cca0a8ff.js"]},"app/experimental-home/_components/InteractivePreviewWrapper.tsx -> @/components/PreviewManager":{"id":93399,"files":["static/chunks/3399.01800f4752d0c70c.js"]}}';

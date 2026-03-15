@@ -10,12 +10,14 @@ import { getAuth } from "@/auth"
 
 export async function GET(request: NextRequest) {
     const { env } = await getCloudflareContext()
-    const { handlers } = getAuth(env)
+    const hostname = request.headers.get("host") || ""
+    const { handlers } = getAuth(env, hostname)
     return (handlers as any).GET(request)
 }
 
 export async function POST(request: NextRequest) {
     const { env } = await getCloudflareContext()
-    const { handlers } = getAuth(env)
+    const hostname = request.headers.get("host") || ""
+    const { handlers } = getAuth(env, hostname)
     return (handlers as any).POST(request)
 }

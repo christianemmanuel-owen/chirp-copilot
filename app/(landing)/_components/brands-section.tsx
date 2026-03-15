@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Globe, Instagram, X } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { Card } from "@/app/(landing)/_ui/card";
 import type { Brand } from "@/lib/landing-data";
