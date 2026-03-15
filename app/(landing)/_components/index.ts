@@ -1,0 +1,8 @@
+export { Navbar } from "./navbar"
+export { HeroSection } from "./hero-section"
+export { BrandsSection } from "./brands-section"
+export { FeaturesSection } from "./features-section"
+export { TestimonialSection } from "./testimonial-section"
+export { PricingSection } from "./pricing-section"
+export { FinalCtaSection } from "./final-cta-section"
+export { SiteFooter } from "./site-footer"

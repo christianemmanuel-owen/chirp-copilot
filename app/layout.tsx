@@ -16,7 +16,9 @@ import {
   Outfit,
   Syne,
   Plus_Jakarta_Sans,
-  Bricolage_Grotesque
+  Bricolage_Grotesque,
+  Poppins,
+  IBM_Plex_Sans
 } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
@@ -50,6 +52,8 @@ const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit", display: 
 const syne = Syne({ subsets: ["latin"], variable: "--font-syne", display: "swap" })
 const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-plus-jakarta-sans", display: "swap" })
 const bricolageGrotesque = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-bricolage-grotesque", display: "swap" })
+const poppins = Poppins({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-poppins", display: "swap" })
+const ibmPlexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["300", "400", "700"], variable: "--font-ibm-plex-sans", display: "swap" })
 
 export const metadata: Metadata = {
   title: BUSINESS_NAME,
@@ -102,7 +106,7 @@ export default async function RootLayout({
         <link rel="apple-touch-icon" href={faviconUrl} />
       </head>
       <body
-        className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${inter.variable} ${playfair.variable} ${spaceGrotesk.variable} ${roboto.variable} ${montserrat.variable} ${lato.variable} ${merriweather.variable} ${oswald.variable} ${raleway.variable} ${nunito.variable} ${outfit.variable} ${syne.variable} ${plusJakartaSans.variable} ${bricolageGrotesque.variable}`}
+        className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${inter.variable} ${playfair.variable} ${spaceGrotesk.variable} ${roboto.variable} ${montserrat.variable} ${lato.variable} ${merriweather.variable} ${oswald.variable} ${raleway.variable} ${nunito.variable} ${outfit.variable} ${syne.variable} ${plusJakartaSans.variable} ${bricolageGrotesque.variable} ${poppins.variable} ${ibmPlexSans.variable}`}
         style={themeStyles as React.CSSProperties}
       >
 
