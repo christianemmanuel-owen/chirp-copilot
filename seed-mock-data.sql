@@ -8,7 +8,9 @@ VALUES ('550e8400-e29b-41d4-a716-446655440000', 'Chirp Sample Store', 'sample-st
 
 -- 2. Create a Sample User
 -- ID: 660e8400-e29b-41d4-a716-446655440000
+INSERT INTO users (id, email, name, hashed_password)
 VALUES ('660e8400-e29b-41d4-a716-446655440000', 'admin@example.com', 'Sample Admin', '$2b$10$Tv8tR.yAewP7QAJEd6l67uD6mngpDFcg5ErBIRaZJHBxM5r2/HyDC');
+
 
 -- 3. Link User to Project
 INSERT INTO user_projects (user_id, project_id, role)

@@ -114,6 +114,10 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isApiRoute && pathname.startsWith("/api/admin") && !session) {
+      // Allow auth routes to proceed
+      if (pathname.startsWith("/api/auth")) {
+        return NextResponse.next();
+      }
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 

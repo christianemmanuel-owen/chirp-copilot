@@ -45,36 +45,60 @@ export function getAuth(env: any, hostname?: string) {
             ...authConfig.providers.filter(p => (p as any).id !== "credentials"),
             Credentials({
                 async authorize(credentials) {
-                    if (!credentials?.email || !credentials?.password) return null;
+                    console.log("[Auth] Attempting login for:", credentials?.email);
+                    if (!credentials?.email || !credentials?.password) {
+                        console.log("[Auth] Missing credentials");
+                        return null;
+                    }
 
-                    const db = getDb(env.DB);
-                    const user = await db.query.users.findFirst({
-                        where: eq(users.email, credentials.email as string),
-                    });
+                    try {
+                        const db = getDb(env.DB);
 
-                    if (!user || !user.hashedPassword) return null;
+                        // Use select instead of query to avoid argument parsing issues in some Drizzle+D1 edge cases
+                        const result = await db.select().from(users).where(eq(users.email, credentials.email as string)).limit(1);
+                        const user = result[0];
 
-                    const isPasswordValid = await compare(
-                        credentials.password as string,
-                        user.hashedPassword
-                    );
-
-                    if (!isPasswordValid) return null;
-
-                    // Fetch user's projects to include in the token
-                    const userProjects = await db.query.userProjects.findMany({
-                        where: eq(users.id, user.id),
-                        with: {
-                            project: true
+                        if (!user) {
+                            console.log("[Auth] User not found in DB");
+                            return null;
                         }
-                    });
 
-                    return {
-                        id: user.id,
-                        email: user.email,
-                        name: user.name,
-                        projects: userProjects.map(up => up.project)
-                    };
+                        if (!user.hashedPassword) {
+                            console.log("[Auth] User found, but no hashed password exists");
+                            return null;
+                        }
+
+                        console.log("[Auth] Comparing passwords...");
+                        const isPasswordValid = await compare(
+                            credentials.password as string,
+                            user.hashedPassword
+                        );
+
+                        if (!isPasswordValid) {
+                            console.log("[Auth] Password comparison failed");
+                            return null;
+                        }
+
+                        console.log("[Auth] Login successful!");
+
+                        // Fetch user's projects to include in the token
+                        const userProjects = await db.query.userProjects.findMany({
+                            where: eq(users.id, user.id),
+                            with: {
+                                project: true
+                            }
+                        });
+
+                        return {
+                            id: user.id,
+                            email: user.email,
+                            name: user.name,
+                            projects: userProjects.map(up => up.project)
+                        };
+                    } catch (error) {
+                        console.error("[Auth] Authorize Error:", error);
+                        return null;
+                    }
                 },
             }),
         ],
